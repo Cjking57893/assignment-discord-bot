@@ -12,9 +12,8 @@ def get_courses():
 
     valid_courses = []
     for c in data:
-        # Skip restricted / malformed entries
+        # Skip malformed entries with no name
         if "name" not in c:
-            print(f"⚠️ Skipping restricted course {c.get('id')}")
             continue
 
         valid_courses.append({

@@ -12,6 +12,11 @@ class CanvasClient:
     def get(self, endpoint, params=None):
         # Handle pagination for GET requests
         url = f"{self.base_url}/{endpoint}"
+        # Default per_page=100 unless already provided
+        if params is None:
+            params = {"per_page": 100}
+        elif "per_page" not in params:
+            params = {**params, "per_page": 100}
         all_results = []
         while url:
             response = requests.get(url, headers=self.headers, params=params)

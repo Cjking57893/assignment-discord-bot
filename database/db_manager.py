@@ -80,6 +80,19 @@ async def init_db():
 
         await db.commit()
 
+        # Study plans table
+        await db.execute("""
+            CREATE TABLE IF NOT EXISTS study_plans (
+                user_id TEXT NOT NULL,
+                course_id INTEGER NOT NULL,
+                assignment_id INTEGER NOT NULL,
+                planned_at_utc TEXT NOT NULL,
+                notes TEXT,
+                PRIMARY KEY (user_id, course_id, assignment_id)
+            )
+        """)
+        await db.commit()
+
 # -------------------------------------------------------
 # Course Functions
 # -------------------------------------------------------
@@ -176,4 +189,81 @@ async def get_all_assignments() -> list[tuple]:
             JOIN courses c ON a.course_id = c.id
             ORDER BY a.due_at
         """) as cursor:
+            return await cursor.fetchall()
+
+
+async def upsert_study_plan(user_id: str, course_id: int, assignment_id: int, planned_at_iso_utc: str, notes: str | None = None):
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute(
+            """
+            INSERT INTO study_plans (user_id, course_id, assignment_id, planned_at_utc, notes)
+            VALUES (?, ?, ?, ?, ?)
+            ON CONFLICT(user_id, course_id, assignment_id) DO UPDATE SET
+                planned_at_utc=excluded.planned_at_utc,
+                notes=excluded.notes
+            """,
+            (user_id, course_id, assignment_id, planned_at_iso_utc, notes),
+        )
+        await db.commit()
+
+async def get_study_plans_for_week(user_id: str, start_date_local: datetime):
+    # Convert provided local range to UTC strings for querying
+    if start_date_local.tzinfo is None:
+        local = datetime.now().astimezone().tzinfo or timezone.utc
+        start_date_local = start_date_local.replace(tzinfo=local)
+    end_date_local = start_date_local + timedelta(days=6, hours=23, minutes=59, seconds=59)
+
+    from utils.datetime_utils import to_utc_iso_z
+    start_utc_iso = to_utc_iso_z(start_date_local)
+    end_utc_iso = to_utc_iso_z(end_date_local)
+
+    async with aiosqlite.connect(DB_PATH) as db:
+        async with db.execute(
+            """
+            SELECT user_id, course_id, assignment_id, planned_at_utc, notes
+            FROM study_plans
+            WHERE planned_at_utc BETWEEN ? AND ? AND user_id = ?
+            ORDER BY planned_at_utc
+            """,
+            (start_utc_iso, end_utc_iso, user_id),
+        ) as cursor:
+            return await cursor.fetchall()
+
+
+async def get_user_plans_for_week_detailed(user_id: str, start_date_local: datetime):
+    """
+    Returns planned study sessions for the specified user for the week starting at
+    start_date_local (treated as local Monday at 00:00), joined with assignment and
+    course details for easier display.
+    """
+    # Normalize to local tz if naive
+    if start_date_local.tzinfo is None:
+        local = datetime.now().astimezone().tzinfo or timezone.utc
+        start_date_local = start_date_local.replace(tzinfo=local)
+    end_date_local = start_date_local + timedelta(days=6, hours=23, minutes=59, seconds=59)
+
+    start_utc_iso = to_utc_iso_z(start_date_local)
+    end_utc_iso = to_utc_iso_z(end_date_local)
+
+    async with aiosqlite.connect(DB_PATH) as db:
+        async with db.execute(
+            """
+            SELECT
+                sp.assignment_id,
+                sp.course_id,
+                sp.planned_at_utc,
+                sp.notes,
+                a.name AS assignment_name,
+                a.due_at AS assignment_due_utc,
+                c.course_code,
+                c.name AS course_name
+            FROM study_plans sp
+            JOIN assignments a ON a.id = sp.assignment_id AND a.course_id = sp.course_id
+            JOIN courses c ON c.id = sp.course_id
+            WHERE sp.user_id = ?
+              AND sp.planned_at_utc BETWEEN ? AND ?
+            ORDER BY sp.planned_at_utc
+            """,
+            (user_id, start_utc_iso, end_utc_iso),
+        ) as cursor:
             return await cursor.fetchall()
