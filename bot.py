@@ -1,6 +1,7 @@
 import discord
 from discord.ext import commands
 from config import BOT_TOKEN
+from canvas_api.endpoints import get_courses
 
 # Define bot command prefix (e.g. !help, !ping)
 bot = commands.Bot(command_prefix="!", intents=discord.Intents.all())
