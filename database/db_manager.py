@@ -93,6 +93,19 @@ async def init_db():
         """)
         await db.commit()
 
+        # Per-user assignment completion status
+        await db.execute("""
+            CREATE TABLE IF NOT EXISTS user_assignment_status (
+                user_id TEXT NOT NULL,
+                course_id INTEGER NOT NULL,
+                assignment_id INTEGER NOT NULL,
+                completed INTEGER NOT NULL DEFAULT 0,
+                completed_at_utc TEXT,
+                PRIMARY KEY (user_id, course_id, assignment_id)
+            )
+        """)
+        await db.commit()
+
 # -------------------------------------------------------
 # Course Functions
 # -------------------------------------------------------
@@ -263,6 +276,58 @@ async def get_user_plans_for_week_detailed(user_id: str, start_date_local: datet
             WHERE sp.user_id = ?
               AND sp.planned_at_utc BETWEEN ? AND ?
             ORDER BY sp.planned_at_utc
+            """,
+            (user_id, start_utc_iso, end_utc_iso),
+        ) as cursor:
+            return await cursor.fetchall()
+
+
+async def set_assignment_completed(user_id: str, course_id: int, assignment_id: int, completed: bool, completed_at_iso_utc: str | None = None):
+    """Mark an assignment as completed (or not) for a specific user."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute(
+            """
+            INSERT INTO user_assignment_status (user_id, course_id, assignment_id, completed, completed_at_utc)
+            VALUES (?, ?, ?, ?, ?)
+            ON CONFLICT(user_id, course_id, assignment_id) DO UPDATE SET
+                completed=excluded.completed,
+                completed_at_utc=excluded.completed_at_utc
+            """,
+            (user_id, course_id, assignment_id, int(completed), completed_at_iso_utc),
+        )
+        await db.commit()
+
+
+async def get_week_assignments_with_status(user_id: str, start_date_local: datetime):
+    """
+    Get assignments due this week (Mon–Sun) with per-user completion status joined in.
+    Returns rows of (assignment_id, course_id, assignment_name, due_at_utc, course_code, course_name, completed, submitted)
+    """
+    if start_date_local.tzinfo is None:
+        local = datetime.now().astimezone().tzinfo or timezone.utc
+        start_date_local = start_date_local.replace(tzinfo=local)
+    end_date_local = start_date_local + timedelta(days=6, hours=23, minutes=59, seconds=59)
+
+    start_utc_iso = to_utc_iso_z(start_date_local)
+    end_utc_iso = to_utc_iso_z(end_date_local)
+
+    async with aiosqlite.connect(DB_PATH) as db:
+        async with db.execute(
+            """
+            SELECT a.id AS assignment_id,
+                   a.course_id,
+                   a.name AS assignment_name,
+                   a.due_at AS due_at_utc,
+                   c.course_code,
+                   c.name AS course_name,
+                   COALESCE(uas.completed, 0) AS completed,
+                   COALESCE(a.submitted, 0) AS submitted
+            FROM assignments a
+            JOIN courses c ON c.id = a.course_id
+            LEFT JOIN user_assignment_status uas
+              ON uas.user_id = ? AND uas.course_id = a.course_id AND uas.assignment_id = a.id
+            WHERE a.due_at BETWEEN ? AND ?
+            ORDER BY a.due_at
             """,
             (user_id, start_utc_iso, end_utc_iso),
         ) as cursor:
