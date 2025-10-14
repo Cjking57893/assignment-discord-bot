@@ -1,0 +1,92 @@
+=== Course 75110000000081929: Cross-Platform Development (2025 Fall) ASE-456-001-2026-010 ===
+  - HW1 | due_at: 2025-08-30T03:59:59Z
+  - HW2 | due_at: 2025-09-15T03:59:59Z
+  - HW3 | due_at: 2025-10-04T03:59:59Z
+  - HW4 | due_at: 2025-10-15T03:59:59Z
+  - HW5 | due_at: 2025-11-22T04:59:59Z
+  - Team Project | due_at: 2025-12-01T04:59:59Z
+  - Individual Project | due_at: 2025-12-01T04:59:00Z
+  - ASE Midterm Preparation Questions - Requires Respondus LockDown Browser + Webcam | due_at: 2025-10-08T03:59:59Z
+  - ASE 456 Midterm1 Questions - Requires Respondus LockDown Browser + Webcam | due_at: 2025-10-08T23:15:00Z
+
+=== Course 75110000000074817: Foundations of Informatics Professionals (2024 Fall full term) INF-201-001-2025-010 ===
+  - Value Proposition or the "About Me" section of the LinkedIn profile - How To Write One | due_at: 2024-09-09T03:59:59Z
+  - Education, Volunteer, and Skills Sections of LinkedIn and Resume | due_at: 2024-09-16T03:59:00Z
+  - Bullet Writing and the Experience Section of LinkedIn and Resume | due_at: 2024-09-23T03:59:00Z
+  - Full Resume and LinkedIn Profile | due_at: 2024-09-30T03:59:00Z
+  - Handshake Resume Upload | due_at: 2024-09-30T03:59:00Z
+  - Professional Email with Signature | due_at: 2024-10-21T03:59:00Z
+  - Cover Letter Assignment | due_at: 2024-10-28T03:59:00Z
+  - Narrative | due_at: 2024-11-04T18:00:00Z
+  - Career Coaching Meeting | due_at: 2024-11-17T22:00:00Z
+  - Attend a Career Event | due_at: 2024-11-29T22:00:00Z
+
+=== Course 75110000000057802: Full-Stack Application Development (2023 Spring full term) ASE-220-001-2023-030 ===
+  - Assignment 1: Create your personal website | due_at: 2023-01-23T04:59:59Z
+  - Assignment 2: Create a JavaScript-powered website | due_at: 2023-02-13T04:59:59Z
+  - Assignment 4 (Mid-term): Design a Content Management System [HARD DEADLINE] | due_at: 2023-03-11T04:59:59Z
+  - Assignment 5: Create a replica of JSONblob.com | due_at: 2023-04-03T03:59:59Z
+  - Assignment 6: implement a replica of JSONblob.com using MongoDB | due_at: 2023-04-24T03:59:59Z
+  - Assignment 7 (Final project): Finalize your full-stack application [HARD DEADLINE] | due_at: 2023-05-08T03:59:59Z
+  - Assignment 6: modify your mid-term to use MongoDB instead of JSON files | due_at: 2023-04-21T03:59:59Z
+
+=== Course 75110000000058863: GLY 120-005 This Dangerous Earth (2023 Spring full term)  ===
+  - Module 1: Assignment 1 -- First Day "Quiz" | due_at: 2023-01-14T04:59:00Z
+  - Module 2: Assignment 1 -- Birth of the Earth Video Assignment | due_at: 2023-01-21T04:59:00Z
+  - Quiz 1 | due_at: 2023-01-28T04:59:00Z
+  - Module 4: Assignment 1-- Plate Tectonic Chart | due_at: 2023-02-04T04:59:00Z
+  - Module 5: Assignment 1 -- Plate Tectonic Map Activity | due_at: 2023-02-11T04:59:59Z
+  - Module 6: Assignment 1 -- Submit Completed Unit 1 Outline | due_at: 2023-02-18T04:59:59Z
+  - Unit 1 Exam | due_at: 2023-02-18T04:59:00Z
+  - Module 8: Assignment 1 -- Volcano Chart | due_at: 2023-03-04T04:59:00Z
+  - Module 8: Assignment 2 -- Ring of Fire Video Questions  | due_at: 2023-03-04T04:59:00Z
+  - Module 9: Assignment 1 -- Earthquake Epicenter Activity | due_at: 2023-03-18T03:59:59Z
+
+=== Course 75110000000065479: Human Relations in Organizations (2023 Fall full term) LDR-205-001-2024-010 ===
+  - Orientation Quiz | due_at: 2023-09-05T03:59:00Z
+  - Module 2 Self Assessments | due_at: 2023-09-11T03:59:00Z
+  - Module 3 Discussion Board | due_at: 2023-09-16T03:59:00Z
+  - Module 4 Discussion Board | due_at: 2023-10-02T03:59:00Z
+  - Module 6 Discussion Board | due_at: 2023-10-21T03:59:00Z
+  - Module 8 Discussion Board | due_at: 2023-11-18T04:59:00Z
+  - Exam 1 (Chapters 1-5) Midterm Exam | due_at: 2023-10-16T03:59:00Z
+  - Module 4 Self-Assessments | due_at: 2023-10-09T03:59:00Z
+  - Module 6 Self-Assessment Exercises | due_at: 2023-10-30T03:59:00Z
+  - Module 7 Networking Assignment  | due_at: 2023-11-06T04:59:00Z
+
+=== Course 75110000000071958: Human-Computer Interaction (2024 Fall full term) ASE-330-001-2025-010 ===
+  - Assignment 07: meet 1:1 with the instructor  | due_at: None
+  - Assignment: 1 - Introduction to Human-Computer Interaction | due_at: 2024-08-29T03:59:59Z
+  - Assignment: 2 - Define the preliminary idea for the course project [group assignment] | due_at: 2024-09-18T03:59:59Z
+  - Assignment: Facilitator challenge | due_at: 2024-12-07T04:59:59Z
+  - Assignment 5 - Mid-term project [HARD DEADLINE] | due_at: 2023-10-15T03:59:59Z
+  - Assignment 6: design principles [IN-CLASS PRESENCE REQUIRED] | due_at: 2024-10-29T03:59:59Z
+  - Assignment 7: finalize your first prototype iteration | due_at: 2024-11-05T04:59:59Z
+  - Assignment 8: Finalize your second prototype iteration | due_at: 2024-11-21T04:59:59Z
+  - Assignment 7: peer-review time | due_at: None
+  - Mid-term: Submit your design document (hard deadline) | due_at: 2024-10-07T03:59:59Z
+
+=== Course 75110000000063506: Information Ethics (2023 Fall full term) PHI-310-002-2024-010 ===
+  - Quiz 1.0- Requires Respondus LockDown Browser | due_at: 2023-08-28T03:59:00Z
+  - Quiz 2.0- Requires Respondus LockDown Browser | due_at: 2023-09-04T03:59:00Z
+  - Quiz 3.0- Requires Respondus LockDown Browser | due_at: 2023-09-11T03:59:00Z
+  - Quiz 4.0- Requires Respondus LockDown Browser | due_at: 2023-09-18T03:59:00Z
+  - Quiz 5.0- Requires Respondus LockDown Browser | due_at: 2023-09-25T03:59:00Z
+  - Quiz 6.0- Requires Respondus LockDown Browser | due_at: 2023-10-02T03:59:00Z
+  - Quiz 7.0- Requires Respondus LockDown Browser | due_at: 2023-10-16T03:59:00Z
+  - Quiz 8.0- Requires Respondus LockDown Browser | due_at: 2023-10-23T03:59:00Z
+  - Quiz 9.0- Requires Respondus LockDown Browser | due_at: 2023-11-06T04:59:00Z
+  - Quiz 10.0- Requires Respondus LockDown Browser | due_at: 2023-11-13T04:59:00Z
+
+=== Course 75110000000079408: Introductory Discrete Mathematics - QR (2025 Spring full term) MAT-185-001-2025-030 ===
+  - Homework 1 - Section 2.1 - Introductory Logic | due_at: 2025-01-23T18:40:00Z
+  - Homework 2 - Section 2.2 - Conditional Statements | due_at: 2025-01-30T18:40:00Z
+  - Homework 3 - Section 2.3 - Valid and Invalid Arguments | due_at: 2025-02-06T18:40:00Z
+  - Homework 4 - Section 2.4 - Digital Logic Circuits | due_at: 2025-02-13T18:40:00Z
+  - Homework 5 - Sections 1.2 and 6.1 - Sets | due_at: 2025-02-20T18:40:00Z
+  - Homework 6 - Sets - Sections 6.1,6.2 and 6.3 | due_at: 2025-03-04T18:40:00Z
+  - Exam 1 | due_at: None
+  - Homework 7 - Section 9.1 - Introduction to Probability | due_at: 2025-03-20T17:40:00Z
+  - Homework 8 - Section 9.2 - Possibility Trees and the Multiplication Rule | due_at: 2025-03-27T17:40:00Z
+  - Homework 9 - Section 9.3 - Counting Elements of Disjoint Sets | due_at: 2025-04-01T17:40:00Z
+

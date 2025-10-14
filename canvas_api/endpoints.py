@@ -5,9 +5,10 @@ canvas_client = CanvasClient()
 def get_courses():
     """
     Fetch all courses from Canvas for the current user.
-    Filters out restricted or missing course data.
+    No enrollment_state filter, so all courses are returned.
     """
-    data = canvas_client.get("courses", params={"enrollment_state": "active"})
+    data = canvas_client.get("courses")
+
 
     valid_courses = []
     for c in data:

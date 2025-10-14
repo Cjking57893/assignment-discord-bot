@@ -10,6 +10,24 @@ class CanvasClient:
         }
 
     def get(self, endpoint, params=None):
-        response = requests.get(f"{self.base_url}/{endpoint}", headers=self.headers, params=params)
-        response.raise_for_status()
-        return response.json()
+        # Handle pagination for GET requests
+        url = f"{self.base_url}/{endpoint}"
+        all_results = []
+        while url:
+            response = requests.get(url, headers=self.headers, params=params)
+            response.raise_for_status()
+            data = response.json()
+            if isinstance(data, list):
+                all_results.extend(data)
+            else:
+                # For non-list responses (single object), just return
+                return data
+            # Parse Link header for pagination
+            link = response.headers.get('Link', '')
+            next_url = None
+            for part in link.split(','):
+                if 'rel="next"' in part:
+                    next_url = part[part.find('<')+1:part.find('>')]
+            url = next_url
+            params = None  # Only use params on first request
+        return all_results

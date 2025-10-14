@@ -9,11 +9,22 @@ from utils.sync import sync_canvas_data
 # Define bot command prefix (e.g. !help, !ping)
 bot = commands.Bot(command_prefix="!", intents=discord.Intents.all())
 
+_synced_once = False
+
 @bot.event
 async def on_ready():
+    global _synced_once
     await init_db()
     print("Database initialized.")
     print(f"✅ Logged in as {bot.user}")
+    # Auto-sync once when the bot is ready
+    if not _synced_once:
+        try:
+            await sync_canvas_data()
+            _synced_once = True
+            print("Initial sync complete.")
+        except Exception as e:
+            print(f"Initial sync failed: {e}")
     
 @bot.command()
 async def sync(ctx):

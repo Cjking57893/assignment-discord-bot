@@ -1,5 +1,5 @@
 from canvas_api.endpoints import get_courses, get_assignments
-from datetime import datetime
+from utils.datetime_utils import format_local
 
 def get_formatted_courses():
     """
@@ -36,8 +36,7 @@ def get_formatted_assignments(course_id):
         # Format due date nicely (Canvas returns ISO8601)
         if due_at:
             try:
-                dt = datetime.fromisoformat(due_at.replace("Z", "+00:00"))
-                due_str = dt.strftime("%b %d, %Y, %I:%M %p")
+                due_str = format_local(due_at)
             except Exception:
                 due_str = due_at
         else:
