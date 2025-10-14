@@ -1,11 +1,6 @@
 import discord
 from discord.ext import commands
-import os
-from dotenv import load_dotenv
-
-load_dotenv()
-
-TOKEN = os.getenv("BOT_TOKEN")
+from config import BOT_TOKEN
 
 # Define bot command prefix (e.g. !help, !ping)
 bot = commands.Bot(command_prefix="!", intents=discord.Intents.all())
@@ -18,4 +13,4 @@ async def on_ready():
 async def ping(ctx):
     await ctx.send("Pong!")
 
-bot.run(TOKEN)
+bot.run(BOT_TOKEN)
