@@ -94,8 +94,8 @@ async def complete(ctx, *, query: str | None = None):
     user_id = str(ctx.author.id)
     rows = await get_week_assignments_with_status(user_id, monday)
 
-    # Filter to incomplete and not already submitted (submitted from Canvas)
-    items = [r for r in rows if int(r[6]) == 0 and int(r[7]) == 0]  # completed idx=6, submitted idx=7
+    # Filter to not yet marked complete (regardless of Canvas submitted flag)
+    items = [r for r in rows if int(r[6]) == 0]  # completed idx=6
 
     if query:
         q = query.lower()
@@ -113,7 +113,8 @@ async def complete(ctx, *, query: str | None = None):
         assignment_id, course_id, assignment_name, due_utc, course_code, course_name, completed, submitted = r
         due_str = format_local(due_utc, "%a %b %d, %I:%M %p") if due_utc else "No due date"
         label = f"{course_code}: {course_name}" if course_code else course_name
-        return f"{i}. {assignment_name} — {label} (due {due_str})"
+        submitted_tag = " • submitted" if int(submitted) else ""
+        return f"{i}. {assignment_name} — {label} (due {due_str}{submitted_tag})"
 
     listing = "\n".join(fmt_row(i+1, r) for i, r in enumerate(items))
     await ctx.send("Select the assignments to mark complete (e.g., '1,3,5'):\n" + listing)
