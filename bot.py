@@ -1,11 +1,12 @@
 import discord
-from discord.ext import commands
-from config import BOT_TOKEN
+from discord.ext import commands, tasks
+from config import BOT_TOKEN, CHANNEL_ID
 from database.db_manager import init_db, get_user_plans_for_week_detailed, get_week_assignments_with_status, set_assignment_completed
 from services.canvas_service import get_formatted_courses, get_formatted_assignments
-from utils.weekly import send_weekly_assignments
+from utils.weekly import send_weekly_assignments, send_weekly_assignments_to_channel
 from utils.sync import sync_canvas_data
 from utils.datetime_utils import format_local, get_local_tz
+from datetime import time
 
 # Define bot command prefix (e.g. !help, !ping)
 bot = commands.Bot(command_prefix="!", intents=discord.Intents.all())
@@ -26,6 +27,11 @@ async def on_ready():
             print("Initial sync complete.")
         except Exception as e:
             print(f"Initial sync failed: {e}")
+    
+    # Start the weekly notification task
+    if not weekly_notification.is_running():
+        weekly_notification.start()
+        print("📅 Weekly Monday notification task started.")
     
 @bot.command()
 async def sync(ctx):
@@ -152,5 +158,43 @@ async def complete(ctx, *, query: str | None = None):
         count += 1
 
     await ctx.send(f"Marked {count} assignment(s) as completed.")
+
+
+@tasks.loop(time=time(hour=9, minute=0))  # Run at 9:00 AM every day
+async def weekly_notification():
+    """Send weekly assignments notification every Monday at 9 AM."""
+    from datetime import datetime
+    
+    # Check if today is Monday (weekday 0)
+    if datetime.now().weekday() != 0:
+        return
+    
+    # Sync Canvas data before sending the weekly update
+    try:
+        await sync_canvas_data()
+        print("Weekly sync complete.")
+    except Exception as e:
+        print(f"Weekly sync failed: {e}")
+    
+    # Get the notification channel
+    if not CHANNEL_ID:
+        print("⚠️ CHANNEL_ID not configured. Skipping weekly notification.")
+        return
+    
+    try:
+        channel_id = int(CHANNEL_ID)
+        channel = bot.get_channel(channel_id)
+        if not channel:
+            print(f"⚠️ Could not find channel with ID {channel_id}")
+            return
+        
+        # Send the weekly assignments to the channel
+        await send_weekly_assignments_to_channel(channel)
+        print(f"✅ Sent weekly notification to channel {channel_id}")
+    except ValueError:
+        print(f"⚠️ Invalid CHANNEL_ID: {CHANNEL_ID}")
+    except Exception as e:
+        print(f"❌ Error sending weekly notification: {e}")
+
 
 bot.run(BOT_TOKEN)

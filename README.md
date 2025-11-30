@@ -33,6 +33,7 @@ Create a `.env` file in the root directory with the following:
 ```env
 BOT_TOKEN=your_discord_bot_token_here
 CANVAS_TOKEN=your_canvas_api_token_here
+CHANNEL_ID=your_discord_channel_id_here
 ```
 
 **Where to get these:**
@@ -40,6 +41,7 @@ CANVAS_TOKEN=your_canvas_api_token_here
   - Go to "Bot" section → Reset Token → Copy the token
   - Enable "Message Content Intent" under Privileged Gateway Intents
 - **CANVAS_TOKEN**: Canvas → Account → Settings → "+ New Access Token"
+- **CHANNEL_ID**: Right-click on your Discord channel → Copy Channel ID (requires Developer Mode enabled in Discord settings)
 
 **Note:** The database will be automatically created at `data/canvas_bot.db` when you first run the bot. If you have an existing database, place it in the `data/` directory.
 
@@ -59,8 +61,17 @@ The bot will:
 - Initialize the SQLite database
 - Perform an initial sync with Canvas
 - Start listening for Discord commands
+- **Send weekly assignment notifications every Monday at 9:00 AM** to the configured channel
 
-## Commands
+## Features
+
+### Automatic Weekly Notifications
+Every Monday at 9:00 AM, the bot will:
+1. Sync with Canvas to fetch the latest assignments
+2. Send a message to the configured channel listing all assignments due that week
+3. Users can then use `!thisweek` to interactively schedule work times
+
+### Manual Commands
 
 - !sync — Sync courses and assignments from Canvas into the local database.
 - !thisweek — List assignments due this week (Mon–Sun) and schedule study sessions for each.
