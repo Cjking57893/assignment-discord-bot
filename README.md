@@ -1,6 +1,66 @@
 # Assignment Discord Bot
 
-Commands
+## Setup & Installation
+
+### Prerequisites
+- Python 3.9 or higher (for `zoneinfo` support)
+- A Discord Bot Token (from Discord Developer Portal)
+- A Canvas API Token (from Canvas Settings)
+
+### 1. Clone the Repository
+```bash
+git clone <repository-url>
+cd assignment-discord-bot
+```
+
+### 2. Install Required Python Packages
+```bash
+pip install discord.py python-dotenv aiosqlite requests
+```
+
+Or create a `requirements.txt` with:
+```
+discord.py>=2.0.0
+python-dotenv>=0.19.0
+aiosqlite>=0.17.0
+requests>=2.28.0
+```
+Then run: `pip install -r requirements.txt`
+
+### 3. Configure Environment Variables
+Create a `.env` file in the root directory with the following:
+
+```env
+BOT_TOKEN=your_discord_bot_token_here
+CANVAS_TOKEN=your_canvas_api_token_here
+```
+
+**Where to get these:**
+- **BOT_TOKEN**: Create a Discord bot at [Discord Developer Portal](https://discord.com/developers/applications)
+  - Go to "Bot" section → Reset Token → Copy the token
+  - Enable "Message Content Intent" under Privileged Gateway Intents
+- **CANVAS_TOKEN**: Canvas → Account → Settings → "+ New Access Token"
+
+**Note:** The database will be automatically created at `data/canvas_bot.db` when you first run the bot. If you have an existing database, place it in the `data/` directory.
+
+### 4. Invite Bot to Your Discord Server
+1. Go to Discord Developer Portal → Your Application → OAuth2 → URL Generator
+2. Select scopes: `bot`
+3. Select bot permissions: `Send Messages`, `Read Message History`, `Read Messages/View Channels`
+4. Copy the generated URL and open it in your browser to invite the bot
+
+### 5. Run the Bot
+```bash
+python bot.py
+```
+
+The bot will:
+- Automatically create the `data/` directory if it doesn't exist
+- Initialize the SQLite database
+- Perform an initial sync with Canvas
+- Start listening for Discord commands
+
+## Commands
 
 - !sync — Sync courses and assignments from Canvas into the local database.
 - !thisweek — List assignments due this week (Mon–Sun) and schedule study sessions for each.

@@ -1,4 +1,5 @@
 import aiosqlite
+import os
 from datetime import datetime, timedelta, timezone
 from utils.datetime_utils import parse_canvas_datetime, to_utc_iso_z
 
@@ -9,6 +10,9 @@ DB_PATH = "data/canvas_bot.db"
 # -------------------------------------------------------
 
 async def init_db():
+    # Ensure the directory exists
+    os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
+    
     async with aiosqlite.connect(DB_PATH) as db:
         # Courses table
         await db.execute("""
