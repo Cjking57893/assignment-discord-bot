@@ -537,8 +537,7 @@ async def get_pending_due_date_reminders(now_utc: datetime, user_id: str):
     Returns: List of tuples with assignment details and reminder type
     """
     # Get current week Monday-Sunday
-    today = now_utc.astimezone(get_local_tz() if hasattr(now_utc, 'astimezone') else None)
-    if today.tzinfo is None:
+    today = now_utc.astimezone()    if today.tzinfo is None:
         from datetime import timezone as tz
         today = now_utc.replace(tzinfo=tz.utc).astimezone(get_local_tz())
     
