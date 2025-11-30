@@ -8,7 +8,7 @@ import discord
 from discord.ext import commands, tasks
 from datetime import time, datetime, timedelta, timezone
 
-from config import BOT_TOKEN, CHANNEL_ID
+from config import BOT_TOKEN, CHANNEL_ID, WEEKLY_NOTIFICATION_HOUR, WEEKLY_NOTIFICATION_MINUTE
 from database.db_manager import (
     init_db, get_user_plans_for_week_detailed, get_week_assignments_with_status, 
     set_assignment_completed, get_pending_reminders, mark_reminder_sent, update_study_plan_time,
@@ -320,9 +320,9 @@ async def reschedule(ctx):
 # Background Tasks
 # ========================================
 
-@tasks.loop(time=time(hour=9, minute=0))
+@tasks.loop(time=time(hour=WEEKLY_NOTIFICATION_HOUR, minute=WEEKLY_NOTIFICATION_MINUTE))
 async def weekly_notification():
-    """Send weekly assignment summary every Monday at 9:00 AM."""
+    """Send weekly assignment summary every Monday at configured time."""
     # Only run on Mondays
     if datetime.now().weekday() != 0:
         return
@@ -480,4 +480,5 @@ async def check_and_send_completion_notifications(channel: discord.TextChannel):
 # Bot Entry Point
 # ========================================
 
-bot.run(BOT_TOKEN)
+if __name__ == "__main__":
+    bot.run(BOT_TOKEN)

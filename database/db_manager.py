@@ -11,8 +11,11 @@ import aiosqlite
 import os
 from datetime import datetime, timedelta, timezone
 from utils.datetime_utils import parse_canvas_datetime, to_utc_iso_z
+from config import DB_PATH
 
-DB_PATH = "data/canvas_bot.db"
+# Fallback if DB_PATH is not set in environment
+if not DB_PATH:
+    DB_PATH = "data/canvas_bot.db"
 
 
 # ========================================
@@ -537,9 +540,9 @@ async def get_pending_due_date_reminders(now_utc: datetime, user_id: str):
     Returns: List of tuples with assignment details and reminder type
     """
     # Get current week Monday-Sunday
-    today = now_utc.astimezone()    if today.tzinfo is None:
-        from datetime import timezone as tz
-        today = now_utc.replace(tzinfo=tz.utc).astimezone(get_local_tz())
+    today = now_utc.astimezone()
+    if today.tzinfo is None:
+        today = now_utc.replace(tzinfo=timezone.utc).astimezone()
     
     monday = today.replace(hour=0, minute=0, second=0, microsecond=0) - timedelta(days=today.weekday())
     sunday = monday + timedelta(days=6, hours=23, minutes=59, seconds=59)

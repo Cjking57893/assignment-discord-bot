@@ -23,7 +23,8 @@ class CanvasClient:
             params = {**params, "per_page": DEFAULT_PER_PAGE}
         all_results = []
         while url:
-            response = requests.get(url, headers=self.headers, params=params, timeout=30)            response.raise_for_status()
+            response = requests.get(url, headers=self.headers, params=params, timeout=30)
+            response.raise_for_status()
             data = response.json()
             if isinstance(data, list):
                 all_results.extend(data)
