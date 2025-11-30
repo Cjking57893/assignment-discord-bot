@@ -62,6 +62,7 @@ The bot will:
 - Perform an initial sync with Canvas
 - Start listening for Discord commands
 - **Send weekly assignment notifications every Monday at 9:00 AM** to the configured channel
+- **Start the automated reminder system** for planned work sessions
 
 ## Features
 
@@ -71,12 +72,24 @@ Every Monday at 9:00 AM, the bot will:
 2. Send a message to the configured channel listing all assignments due that week
 3. Users can then use `!thisweek` to interactively schedule work times
 
+### Automated Reminders
+For each planned work session, the bot automatically sends:
+- **24-hour reminder** - One day before the scheduled time
+- **1-hour reminder** - One hour before the scheduled time
+- **Now reminder** - When it's time to start working
+
+Each reminder includes:
+- Assignment name and course
+- Scheduled work time and due date
+- Option to reschedule with `!reschedule` command
+
 ### Manual Commands
 
 - !sync — Sync courses and assignments from Canvas into the local database.
 - !thisweek — List assignments due this week (Mon–Sun) and schedule study sessions for each.
 - !plans — Show your planned study sessions for the current week.
- - !complete — Mark incomplete assignments for this week as completed (interactive selection or provide a name query).
+- !complete — Mark incomplete assignments for this week as completed (interactive selection or provide a name query).
+- !reschedule — Change the scheduled time for a planned work session.
 
 Notes
 

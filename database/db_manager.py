@@ -92,9 +92,27 @@ async def init_db():
                 assignment_id INTEGER NOT NULL,
                 planned_at_utc TEXT NOT NULL,
                 notes TEXT,
+                reminder_24h_sent INTEGER DEFAULT 0,
+                reminder_1h_sent INTEGER DEFAULT 0,
+                reminder_now_sent INTEGER DEFAULT 0,
                 PRIMARY KEY (user_id, course_id, assignment_id)
             )
         """)
+        
+        # Add reminder columns if they don't exist (migration)
+        try:
+            await db.execute("ALTER TABLE study_plans ADD COLUMN reminder_24h_sent INTEGER DEFAULT 0")
+        except Exception:
+            pass
+        try:
+            await db.execute("ALTER TABLE study_plans ADD COLUMN reminder_1h_sent INTEGER DEFAULT 0")
+        except Exception:
+            pass
+        try:
+            await db.execute("ALTER TABLE study_plans ADD COLUMN reminder_now_sent INTEGER DEFAULT 0")
+        except Exception:
+            pass
+        
         await db.commit()
 
         # Per-user assignment completion status
@@ -336,3 +354,118 @@ async def get_week_assignments_with_status(user_id: str, start_date_local: datet
             (user_id, start_utc_iso, end_utc_iso),
         ) as cursor:
             return await cursor.fetchall()
+
+
+async def get_pending_reminders(now_utc: datetime):
+    """
+    Get all planned sessions that need reminders sent.
+    Returns rows with: (user_id, course_id, assignment_id, planned_at_utc, assignment_name, due_at, course_code, course_name, reminder_type)
+    reminder_type: '24h', '1h', or 'now'
+    """
+    now_utc_iso = to_utc_iso_z(now_utc)
+    h24_later = now_utc + timedelta(hours=24)
+    h24_later_iso = to_utc_iso_z(h24_later)
+    h1_later = now_utc + timedelta(hours=1)
+    h1_later_iso = to_utc_iso_z(h1_later)
+    
+    results = []
+    
+    async with aiosqlite.connect(DB_PATH) as db:
+        # Check for 24-hour reminders (planned time is 24 hours from now, +/- 1 minute)
+        h24_start = to_utc_iso_z(now_utc + timedelta(hours=24, minutes=-1))
+        h24_end = to_utc_iso_z(now_utc + timedelta(hours=24, minutes=1))
+        async with db.execute(
+            """
+            SELECT sp.user_id, sp.course_id, sp.assignment_id, sp.planned_at_utc,
+                   a.name, a.due_at, c.course_code, c.name
+            FROM study_plans sp
+            JOIN assignments a ON a.id = sp.assignment_id AND a.course_id = sp.course_id
+            JOIN courses c ON c.id = sp.course_id
+            WHERE sp.planned_at_utc BETWEEN ? AND ?
+              AND sp.reminder_24h_sent = 0
+            """,
+            (h24_start, h24_end),
+        ) as cursor:
+            rows = await cursor.fetchall()
+            for row in rows:
+                results.append(row + ('24h',))
+        
+        # Check for 1-hour reminders
+        h1_start = to_utc_iso_z(now_utc + timedelta(hours=1, minutes=-1))
+        h1_end = to_utc_iso_z(now_utc + timedelta(hours=1, minutes=1))
+        async with db.execute(
+            """
+            SELECT sp.user_id, sp.course_id, sp.assignment_id, sp.planned_at_utc,
+                   a.name, a.due_at, c.course_code, c.name
+            FROM study_plans sp
+            JOIN assignments a ON a.id = sp.assignment_id AND a.course_id = sp.course_id
+            JOIN courses c ON c.id = sp.course_id
+            WHERE sp.planned_at_utc BETWEEN ? AND ?
+              AND sp.reminder_1h_sent = 0
+            """,
+            (h1_start, h1_end),
+        ) as cursor:
+            rows = await cursor.fetchall()
+            for row in rows:
+                results.append(row + ('1h',))
+        
+        # Check for "now" reminders (within 1 minute of planned time)
+        now_start = to_utc_iso_z(now_utc + timedelta(minutes=-1))
+        now_end = to_utc_iso_z(now_utc + timedelta(minutes=1))
+        async with db.execute(
+            """
+            SELECT sp.user_id, sp.course_id, sp.assignment_id, sp.planned_at_utc,
+                   a.name, a.due_at, c.course_code, c.name
+            FROM study_plans sp
+            JOIN assignments a ON a.id = sp.assignment_id AND a.course_id = sp.course_id
+            JOIN courses c ON c.id = sp.course_id
+            WHERE sp.planned_at_utc BETWEEN ? AND ?
+              AND sp.reminder_now_sent = 0
+            """,
+            (now_start, now_end),
+        ) as cursor:
+            rows = await cursor.fetchall()
+            for row in rows:
+                results.append(row + ('now',))
+    
+    return results
+
+
+async def mark_reminder_sent(user_id: str, course_id: int, assignment_id: int, reminder_type: str):
+    """Mark a specific reminder as sent for a study plan."""
+    column_map = {
+        '24h': 'reminder_24h_sent',
+        '1h': 'reminder_1h_sent',
+        'now': 'reminder_now_sent'
+    }
+    column = column_map.get(reminder_type)
+    if not column:
+        return
+    
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute(
+            f"""
+            UPDATE study_plans
+            SET {column} = 1
+            WHERE user_id = ? AND course_id = ? AND assignment_id = ?
+            """,
+            (user_id, course_id, assignment_id),
+        )
+        await db.commit()
+
+
+async def update_study_plan_time(user_id: str, course_id: int, assignment_id: int, new_planned_at_utc: str):
+    """Update the planned time for a study session and reset reminder flags."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute(
+            """
+            UPDATE study_plans
+            SET planned_at_utc = ?,
+                reminder_24h_sent = 0,
+                reminder_1h_sent = 0,
+                reminder_now_sent = 0
+            WHERE user_id = ? AND course_id = ? AND assignment_id = ?
+            """,
+            (new_planned_at_utc, user_id, course_id, assignment_id),
+        )
+        await db.commit()
