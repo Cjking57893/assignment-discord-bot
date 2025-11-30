@@ -145,6 +145,17 @@ async def init_db():
         """)
         await db.commit()
 
+        # Week completion notifications tracking
+        await db.execute("""
+            CREATE TABLE IF NOT EXISTS week_completion_notifications (
+                user_id TEXT NOT NULL,
+                week_key TEXT NOT NULL,
+                notified INTEGER DEFAULT 0,
+                PRIMARY KEY (user_id, week_key)
+            )
+        """)
+        await db.commit()
+
 # -------------------------------------------------------
 # Course Functions
 # -------------------------------------------------------
@@ -595,5 +606,86 @@ async def mark_due_date_reminder_sent(course_id: int, assignment_id: int, remind
             WHERE course_id = ? AND id = ?
             """,
             (course_id, assignment_id),
+        )
+        await db.commit()
+
+
+async def check_week_completion(user_id: str, start_date_local: datetime):
+    """
+    Check if all assignments for the current week are completed.
+    Returns (all_complete: bool, total_count: int, completed_count: int)
+    """
+    if start_date_local.tzinfo is None:
+        local = datetime.now().astimezone().tzinfo or timezone.utc
+        start_date_local = start_date_local.replace(tzinfo=local)
+    end_date_local = start_date_local + timedelta(days=6, hours=23, minutes=59, seconds=59)
+
+    start_utc_iso = to_utc_iso_z(start_date_local)
+    end_utc_iso = to_utc_iso_z(end_date_local)
+
+    async with aiosqlite.connect(DB_PATH) as db:
+        # Get total assignments for the week
+        async with db.execute(
+            """
+            SELECT COUNT(*)
+            FROM assignments a
+            WHERE a.due_at BETWEEN ? AND ?
+            """,
+            (start_utc_iso, end_utc_iso),
+        ) as cursor:
+            row = await cursor.fetchone()
+            total_count = row[0] if row else 0
+        
+        if total_count == 0:
+            return (True, 0, 0)  # No assignments = all complete
+        
+        # Get completed assignments for this user
+        async with db.execute(
+            """
+            SELECT COUNT(*)
+            FROM assignments a
+            JOIN user_assignment_status uas
+              ON uas.user_id = ? AND uas.course_id = a.course_id AND uas.assignment_id = a.id
+            WHERE a.due_at BETWEEN ? AND ?
+              AND uas.completed = 1
+            """,
+            (user_id, start_utc_iso, end_utc_iso),
+        ) as cursor:
+            row = await cursor.fetchone()
+            completed_count = row[0] if row else 0
+        
+        all_complete = (completed_count == total_count)
+        return (all_complete, total_count, completed_count)
+
+
+async def get_week_completion_notified(user_id: str, week_start: datetime):
+    """Check if completion notification was already sent for this week."""
+    week_key = week_start.strftime("%Y-%U")  # Year-Week format
+    
+    async with aiosqlite.connect(DB_PATH) as db:
+        async with db.execute(
+            """
+            SELECT notified
+            FROM week_completion_notifications
+            WHERE user_id = ? AND week_key = ?
+            """,
+            (user_id, week_key),
+        ) as cursor:
+            row = await cursor.fetchone()
+            return row[0] if row else 0
+
+
+async def mark_week_completion_notified(user_id: str, week_start: datetime):
+    """Mark that completion notification was sent for this week."""
+    week_key = week_start.strftime("%Y-%U")
+    
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute(
+            """
+            INSERT INTO week_completion_notifications (user_id, week_key, notified)
+            VALUES (?, ?, 1)
+            ON CONFLICT(user_id, week_key) DO UPDATE SET notified=1
+            """,
+            (user_id, week_key),
         )
         await db.commit()

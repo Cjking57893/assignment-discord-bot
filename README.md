@@ -86,6 +86,21 @@ Each reminder includes:
 - Option to reschedule with `!reschedule` command
 
 #### Due Date Reminders
+For all assignments in the current week, the bot sends:
+- **2-day reminder** - Two days before the due date
+- **1-day reminder** - One day before the due date
+- **12-hour reminder** - Twelve hours before the due date
+
+These reminders are sent regardless of whether you have a planned work session, ensuring you never miss a deadline.
+
+### Completion Tracking & Notifications
+- Mark assignments as complete using `!complete`
+- When all assignments for the week are completed, the bot sends a **celebration message** 🎉
+- Completion notification sent once per week to avoid spam
+- Tracks completion status per user
+- Option to reschedule with `!reschedule` command
+
+#### Due Date Reminders
 For all assignments due this week (whether scheduled or not), the bot sends:
 - **2-day reminder** - Two days before the assignment is due
 - **1-day reminder** - One day before the assignment is due

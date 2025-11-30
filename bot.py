@@ -3,7 +3,8 @@ from discord.ext import commands, tasks
 from config import BOT_TOKEN, CHANNEL_ID
 from database.db_manager import (init_db, get_user_plans_for_week_detailed, get_week_assignments_with_status, 
                                  set_assignment_completed, get_pending_reminders, mark_reminder_sent, update_study_plan_time,
-                                 get_pending_due_date_reminders, mark_due_date_reminder_sent)
+                                 get_pending_due_date_reminders, mark_due_date_reminder_sent, check_week_completion,
+                                 get_week_completion_notified, mark_week_completion_notified)
 from services.canvas_service import get_formatted_courses, get_formatted_assignments
 from utils.weekly import send_weekly_assignments, send_weekly_assignments_to_channel
 from utils.sync import sync_canvas_data
@@ -305,6 +306,42 @@ async def check_reminders():
                     # Mark reminder as sent
                     await mark_due_date_reminder_sent(course_id, assignment_id, reminder_type)
                     print(f"✅ Sent {reminder_type} due date reminder for {assignment_name} to user {user_id}")
+        
+        # Check for week completion (only check once per day around noon to avoid spam)
+        if now_utc.hour == 12 and channel.guild:
+            for member in channel.guild.members:
+                if member.bot:
+                    continue
+                user_id = str(member.id)
+                
+                # Get current week's Monday
+                today = datetime.now()
+                monday = today.replace(hour=0, minute=0, second=0, microsecond=0) - timedelta(days=today.weekday())
+                
+                # Check if already notified for this week
+                already_notified = await get_week_completion_notified(user_id, monday)
+                if already_notified:
+                    continue
+                
+                # Check if all assignments are complete
+                all_complete, total_count, completed_count = await check_week_completion(user_id, monday)
+                
+                if all_complete and total_count > 0:
+                    # Send celebration message
+                    user_mention = f"<@{user_id}>"
+                    sunday = monday + timedelta(days=6)
+                    week_range = f"{monday.strftime('%b %d')} – {sunday.strftime('%b %d')}"
+                    
+                    msg = f"🎉 **Congratulations!** {user_mention}\n\n"
+                    msg += f"✅ You've completed all {total_count} assignment(s) for the week of {week_range}!\n\n"
+                    msg += f"🌟 Great work staying on top of your coursework! Keep it up!\n\n"
+                    msg += f"💡 A new week will begin on Monday with fresh assignments."
+                    
+                    await channel.send(msg)
+                    
+                    # Mark as notified
+                    await mark_week_completion_notified(user_id, monday)
+                    print(f"🎉 Sent week completion notification to user {user_id}")
             
     except Exception as e:
         print(f"❌ Error checking reminders: {e}")
