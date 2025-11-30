@@ -1,22 +1,26 @@
 import requests
+from typing import Dict, Any, Optional, List, Union
 from config import CANVAS_BASE_URL, CANVAS_TOKEN
 
+# Pagination settings for Canvas API
+DEFAULT_PER_PAGE = 100
+
 class CanvasClient:
-    def __init__(self, base_url=CANVAS_BASE_URL, token=CANVAS_TOKEN):
+    def __init__(self, base_url: str = CANVAS_BASE_URL, token: str = CANVAS_TOKEN):
         self.base_url = base_url
         self.headers = {
             "Authorization": f"Bearer {token}",
             "Content-Type": "application/json"
         }
 
-    def get(self, endpoint, params=None):
+    def get(self, endpoint: str, params: Optional[Dict[str, Any]] = None) -> Union[List[Dict[str, Any]], Dict[str, Any]]:
         # Handle pagination for GET requests
         url = f"{self.base_url}/{endpoint}"
-        # Default per_page=100 unless already provided
+        # Default per_page unless already provided
         if params is None:
-            params = {"per_page": 100}
+            params = {"per_page": DEFAULT_PER_PAGE}
         elif "per_page" not in params:
-            params = {**params, "per_page": 100}
+            params = {**params, "per_page": DEFAULT_PER_PAGE}
         all_results = []
         while url:
             response = requests.get(url, headers=self.headers, params=params)

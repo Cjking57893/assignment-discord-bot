@@ -1,8 +1,9 @@
 from .client import CanvasClient
+from typing import List, Dict, Any
 
 canvas_client = CanvasClient()
 
-def get_courses():
+def get_courses() -> List[Dict[str, Any]]:
     """
     Fetch all courses from Canvas for the current user.
     No enrollment_state filter, so all courses are returned.
@@ -27,7 +28,7 @@ def get_courses():
     return valid_courses
 
 
-def get_assignments(course_id: int):
+def get_assignments(course_id: int) -> List[Dict[str, Any]]:
     """
     Fetch all assignments for a given Canvas course.
     Only includes assignments that have valid IDs and names.

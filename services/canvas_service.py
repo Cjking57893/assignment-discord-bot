@@ -1,7 +1,8 @@
+from typing import List
 from canvas_api.endpoints import get_courses, get_assignments
 from utils.datetime_utils import format_local
 
-def get_formatted_courses():
+def get_formatted_courses() -> List[str]:
     """
     Fetches courses from Canvas and returns a list of formatted strings.
     Example output: ['12345 – CS101: Intro to Programming']
@@ -16,7 +17,7 @@ def get_formatted_courses():
     return formatted
 
 
-def get_formatted_assignments(course_id):
+def get_formatted_assignments(course_id: int) -> List[str]:
     """
     Fetches assignments for a course and returns a list of formatted strings.
     Example output:

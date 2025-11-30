@@ -1,3 +1,12 @@
+"""
+Database Manager for Canvas Assignment Bot
+Handles all SQLite database operations including:
+- Schema initialization and migrations
+- Course and assignment CRUD operations
+- Study plans and user completion tracking
+- Reminder state management
+"""
+
 import aiosqlite
 import os
 from datetime import datetime, timedelta, timezone
@@ -5,16 +14,17 @@ from utils.datetime_utils import parse_canvas_datetime, to_utc_iso_z
 
 DB_PATH = "data/canvas_bot.db"
 
-# -------------------------------------------------------
-# Initialization
-# -------------------------------------------------------
+
+# ========================================
+# Database Initialization
+# ========================================
 
 async def init_db():
-    # Ensure the directory exists
+    """Initialize database schema and perform any necessary migrations."""
     os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
     
     async with aiosqlite.connect(DB_PATH) as db:
-        # Courses table
+        # Create courses table
         await db.execute("""
             CREATE TABLE IF NOT EXISTS courses (
                 id INTEGER PRIMARY KEY,
@@ -25,7 +35,7 @@ async def init_db():
             )
         """)
 
-        # Assignments table - use composite PK (course_id, id) to avoid cross-course ID collisions
+        # Create assignments table with composite PK to avoid cross-course ID collisions
         await db.execute("""
             CREATE TABLE IF NOT EXISTS assignments (
                 id INTEGER,
@@ -43,31 +53,22 @@ async def init_db():
             )
         """)
         
-        # Add due date reminder columns if they don't exist (migration)
-        try:
-            await db.execute("ALTER TABLE assignments ADD COLUMN due_reminder_2d_sent INTEGER DEFAULT 0")
-        except Exception:
-            pass
-        try:
-            await db.execute("ALTER TABLE assignments ADD COLUMN due_reminder_1d_sent INTEGER DEFAULT 0")
-        except Exception:
-            pass
-        try:
-            await db.execute("ALTER TABLE assignments ADD COLUMN due_reminder_12h_sent INTEGER DEFAULT 0")
-        except Exception:
-            pass
+        # Migration: Add due date reminder columns if they don't exist
+        for column in ["due_reminder_2d_sent", "due_reminder_1d_sent", "due_reminder_12h_sent"]:
+            try:
+                await db.execute(f"ALTER TABLE assignments ADD COLUMN {column} INTEGER DEFAULT 0")
+            except Exception:
+                pass
 
-        # Migration: if an older schema exists with single-column PK on id, rebuild table
+        # Migration: Rebuild assignments table if using old single-column PK schema
         try:
             async with db.execute("PRAGMA table_info(assignments)") as cursor:
                 cols = await cursor.fetchall()
-                # cols: (cid, name, type, notnull, dflt_value, pk)
-                pk_cols = [c[1] for c in cols if c[5] > 0]
+                pk_cols = [c[1] for c in cols if c[5] > 0]  # c[5] is pk flag
+            
             if pk_cols == ["id"]:
-                # Rebuild table with composite PK
                 await db.execute("BEGIN IMMEDIATE")
-                await db.execute(
-                    """
+                await db.execute("""
                     CREATE TABLE IF NOT EXISTS assignments_new (
                         id INTEGER,
                         course_id INTEGER,
@@ -79,21 +80,17 @@ async def init_db():
                         PRIMARY KEY (course_id, id),
                         FOREIGN KEY (course_id) REFERENCES courses (id)
                     )
-                    """
-                )
-                await db.execute(
-                    """
+                """)
+                await db.execute("""
                     INSERT OR REPLACE INTO assignments_new
                         (id, course_id, name, due_at, week_number, html_url, submitted)
                     SELECT id, course_id, name, due_at, week_number, html_url, submitted
                     FROM assignments
-                    """
-                )
+                """)
                 await db.execute("DROP TABLE assignments")
                 await db.execute("ALTER TABLE assignments_new RENAME TO assignments")
                 await db.execute("COMMIT")
         except Exception:
-            # If anything goes wrong, try to rollback to avoid locking the DB
             try:
                 await db.execute("ROLLBACK")
             except Exception:
@@ -101,7 +98,7 @@ async def init_db():
 
         await db.commit()
 
-        # Study plans table
+        # Create study plans table
         await db.execute("""
             CREATE TABLE IF NOT EXISTS study_plans (
                 user_id TEXT NOT NULL,
@@ -116,23 +113,16 @@ async def init_db():
             )
         """)
         
-        # Add reminder columns if they don't exist (migration)
-        try:
-            await db.execute("ALTER TABLE study_plans ADD COLUMN reminder_24h_sent INTEGER DEFAULT 0")
-        except Exception:
-            pass
-        try:
-            await db.execute("ALTER TABLE study_plans ADD COLUMN reminder_1h_sent INTEGER DEFAULT 0")
-        except Exception:
-            pass
-        try:
-            await db.execute("ALTER TABLE study_plans ADD COLUMN reminder_now_sent INTEGER DEFAULT 0")
-        except Exception:
-            pass
+        # Migration: Add reminder columns if they don't exist
+        for column in ["reminder_24h_sent", "reminder_1h_sent", "reminder_now_sent"]:
+            try:
+                await db.execute(f"ALTER TABLE study_plans ADD COLUMN {column} INTEGER DEFAULT 0")
+            except Exception:
+                pass
         
         await db.commit()
 
-        # Per-user assignment completion status
+        # Create user assignment completion tracking table
         await db.execute("""
             CREATE TABLE IF NOT EXISTS user_assignment_status (
                 user_id TEXT NOT NULL,
@@ -145,7 +135,7 @@ async def init_db():
         """)
         await db.commit()
 
-        # Week completion notifications tracking
+        # Create week completion notification tracking table
         await db.execute("""
             CREATE TABLE IF NOT EXISTS week_completion_notifications (
                 user_id TEXT NOT NULL,
@@ -156,12 +146,13 @@ async def init_db():
         """)
         await db.commit()
 
-# -------------------------------------------------------
-# Course Functions
-# -------------------------------------------------------
+
+# ========================================
+# Course Operations
+# ========================================
 
 async def upsert_courses(courses: list[dict]):
-    """Insert or update courses returned by Canvas API"""
+    """Insert or update courses from Canvas API."""
     async with aiosqlite.connect(DB_PATH) as db:
         for c in courses:
             await db.execute("""
@@ -176,6 +167,7 @@ async def upsert_courses(courses: list[dict]):
         await db.commit()
 
 async def get_courses() -> list[tuple]:
+    """Retrieve all courses from the database."""
     async with aiosqlite.connect(DB_PATH) as db:
         async with db.execute("SELECT id, name, course_code FROM courses ORDER BY name") as cursor:
             return await cursor.fetchall()
@@ -218,8 +210,8 @@ async def upsert_assignments(assignments: list[dict], course_id: int):
 
 async def get_assignments_for_week(start_date: datetime):
     """
-    Returns all assignments due between start_date (Monday) and Sunday of that week.
-    :param start_date: datetime object representing Monday of the week.
+    Get all assignments due during the specified week (Monday - Sunday).
+    Returns: List of (name, due_at, course_name, course_code) tuples
     """
     # Treat provided start_date as local midnight Monday and compute end of week
     if start_date.tzinfo is None:
@@ -244,7 +236,35 @@ async def get_assignments_for_week(start_date: datetime):
         ) as cursor:
             return await cursor.fetchall()
 
+
+async def get_assignments_for_week_with_ids(start_date: datetime):
+    """
+    Get all assignments due during the specified week with assignment and course IDs.
+    Returns: List of (assignment_id, course_id, name, due_at, course_name, course_code) tuples
+    """
+    if start_date.tzinfo is None:
+        local = datetime.now().astimezone().tzinfo or timezone.utc
+        start_date = start_date.replace(tzinfo=local)
+    end_date = start_date + timedelta(days=6, hours=23, minutes=59, seconds=59)
+
+    start_utc_iso = to_utc_iso_z(start_date)
+    end_utc_iso = to_utc_iso_z(end_date)
+
+    async with aiosqlite.connect(DB_PATH) as db:
+        async with db.execute(
+            """
+            SELECT a.id, a.course_id, a.name, a.due_at, c.name AS course_name, c.course_code
+            FROM assignments a
+            JOIN courses c ON a.course_id = c.id
+            WHERE a.due_at BETWEEN ? AND ?
+            ORDER BY a.due_at
+            """,
+            (start_utc_iso, end_utc_iso),
+        ) as cursor:
+            return await cursor.fetchall()
+
 async def get_all_assignments() -> list[tuple]:
+    """Retrieve all assignments from the database."""
     async with aiosqlite.connect(DB_PATH) as db:
         async with db.execute("""
             SELECT a.name, a.due_at, c.name AS course_name
@@ -332,8 +352,12 @@ async def get_user_plans_for_week_detailed(user_id: str, start_date_local: datet
             return await cursor.fetchall()
 
 
+# ========================================
+# Assignment Completion Tracking
+# ========================================
+
 async def set_assignment_completed(user_id: str, course_id: int, assignment_id: int, completed: bool, completed_at_iso_utc: str | None = None):
-    """Mark an assignment as completed (or not) for a specific user."""
+    """Mark an assignment as completed or incomplete for a specific user."""
     async with aiosqlite.connect(DB_PATH) as db:
         await db.execute(
             """
@@ -350,8 +374,8 @@ async def set_assignment_completed(user_id: str, course_id: int, assignment_id: 
 
 async def get_week_assignments_with_status(user_id: str, start_date_local: datetime):
     """
-    Get assignments due this week (Mon–Sun) with per-user completion status joined in.
-    Returns rows of (assignment_id, course_id, assignment_name, due_at_utc, course_code, course_name, completed, submitted)
+    Get assignments due this week with per-user completion status.
+    Returns: List of (assignment_id, course_id, name, due_at, course_code, course_name, completed, submitted) tuples
     """
     if start_date_local.tzinfo is None:
         local = datetime.now().astimezone().tzinfo or timezone.utc
@@ -384,11 +408,14 @@ async def get_week_assignments_with_status(user_id: str, start_date_local: datet
             return await cursor.fetchall()
 
 
+# ========================================
+# Work Session Reminder Operations
+# ========================================
+
 async def get_pending_reminders(now_utc: datetime):
     """
-    Get all planned sessions that need reminders sent.
-    Returns rows with: (user_id, course_id, assignment_id, planned_at_utc, assignment_name, due_at, course_code, course_name, reminder_type)
-    reminder_type: '24h', '1h', or 'now'
+    Get all planned sessions that need reminders sent (24h, 1h, or now).
+    Returns: List of tuples with session details and reminder type
     """
     now_utc_iso = to_utc_iso_z(now_utc)
     h24_later = now_utc + timedelta(hours=24)
@@ -483,7 +510,7 @@ async def mark_reminder_sent(user_id: str, course_id: int, assignment_id: int, r
 
 
 async def update_study_plan_time(user_id: str, course_id: int, assignment_id: int, new_planned_at_utc: str):
-    """Update the planned time for a study session and reset reminder flags."""
+    """Update the planned time for a study session and reset all reminder flags."""
     async with aiosqlite.connect(DB_PATH) as db:
         await db.execute(
             """
@@ -499,12 +526,15 @@ async def update_study_plan_time(user_id: str, course_id: int, assignment_id: in
         await db.commit()
 
 
+# ========================================
+# Due Date Reminder Operations
+# ========================================
+
 async def get_pending_due_date_reminders(now_utc: datetime, user_id: str):
     """
-    Get all assignments due this week that need due date reminders.
-    Returns rows with: (assignment_id, course_id, assignment_name, due_at, course_code, course_name, reminder_type)
-    reminder_type: '2d', '1d', or '12h'
-    Only returns assignments that are not marked complete by the user.
+    Get assignments that need due date reminders sent (2d, 1d, or 12h before due).
+    Only includes incomplete assignments for the current week.
+    Returns: List of tuples with assignment details and reminder type
     """
     # Get current week Monday-Sunday
     today = now_utc.astimezone(get_local_tz() if hasattr(now_utc, 'astimezone') else None)
@@ -610,10 +640,14 @@ async def mark_due_date_reminder_sent(course_id: int, assignment_id: int, remind
         await db.commit()
 
 
+# ========================================
+# Week Completion Tracking
+# ========================================
+
 async def check_week_completion(user_id: str, start_date_local: datetime):
     """
     Check if all assignments for the current week are completed.
-    Returns (all_complete: bool, total_count: int, completed_count: int)
+    Returns: (all_complete: bool, total_count: int, completed_count: int)
     """
     if start_date_local.tzinfo is None:
         local = datetime.now().astimezone().tzinfo or timezone.utc

@@ -1,7 +1,16 @@
+"""
+Weekly Assignment Management Utilities
+Handles displaying and scheduling weekly assignments.
+"""
+
 import discord
+import re
 from datetime import datetime, timedelta
-from database.db_manager import get_assignments_for_week, upsert_study_plan
-from utils.datetime_utils import format_local, get_local_tz, parse_canvas_datetime, to_utc_iso_z
+from database.db_manager import get_assignments_for_week, get_assignments_for_week_with_ids, upsert_study_plan
+from utils.datetime_utils import format_local, get_local_tz, to_utc_iso_z
+
+# Timeout for interactive scheduling prompts (in seconds)
+SCHEDULING_TIMEOUT = 120.0
 
 
 async def send_weekly_assignments_to_channel(channel: discord.TextChannel):
@@ -32,8 +41,8 @@ async def send_weekly_assignments_to_channel(channel: discord.TextChannel):
         # Convert due date to readable format
         try:
             due = format_local(due_at, "%a %b %d, %I:%M %p")
-        except Exception:
-            due = due_at  # fallback if format is weird
+        except (ValueError, TypeError):
+            due = due_at  # fallback if format is invalid
 
         course_label = f"{course_code}: {course_name}" if course_code else course_name
         lines.append(f"📚 **{name}** — *{course_label}*\n🕓 Due: `{due}`")
@@ -64,7 +73,7 @@ async def send_weekly_assignments(ctx: discord.ext.commands.Context):
 
     # 4. Format the output
     if not assignments:
-        await ctx.send(f"🎉 No assignments due for **{week_range}** — you’re all caught up!")
+        await ctx.send(f"🎉 No assignments due for **{week_range}** — you're all caught up!")
         return
 
     # Build a neat message
@@ -73,8 +82,8 @@ async def send_weekly_assignments(ctx: discord.ext.commands.Context):
         # Convert due date to readable format
         try:
             due = format_local(due_at, "%a %b %d, %I:%M %p")
-        except Exception:
-            due = due_at  # fallback if format is weird
+        except (ValueError, TypeError):
+            due = due_at  # fallback if format is invalid
 
         course_label = f"{course_code}: {course_name}" if course_code else course_name
         lines.append(f"📚 **{name}** — *{course_label}*\n🕓 Due: `{due}`")
@@ -89,34 +98,8 @@ async def send_weekly_assignments(ctx: discord.ext.commands.Context):
     def check_author(m):
         return m.author == ctx.author and m.channel == ctx.channel
 
-    # Re-fetch assignments to get IDs and course IDs for storage
-    from aiosqlite import connect as _connect
-    # We'll query the DB directly to map names/due to (assignment_id, course_id)
-    # to keep it simple for now.
-    import aiosqlite
-    async with aiosqlite.connect("data/canvas_bot.db") as db:
-        # Build a quick lookup for this week's assignments
-        # Note: We already have 'assignments' tuples without IDs; fetch with IDs
-        # between same UTC window
-        start_local = monday
-        if start_local.tzinfo is None:
-            start_local = start_local.replace(tzinfo=get_local_tz())
-        end_local = sunday.replace(hour=23, minute=59, second=59)
-        if end_local.tzinfo is None:
-            end_local = end_local.replace(tzinfo=get_local_tz())
-        start_utc = to_utc_iso_z(start_local)
-        end_utc = to_utc_iso_z(end_local)
-        async with db.execute(
-            """
-            SELECT a.id, a.course_id, a.name, a.due_at, c.name as course_name, c.course_code
-            FROM assignments a
-            JOIN courses c ON a.course_id = c.id
-            WHERE a.due_at BETWEEN ? AND ?
-            ORDER BY a.due_at
-            """,
-            (start_utc, end_utc),
-        ) as cur:
-            rows = await cur.fetchall()
+    # Fetch assignments with IDs for scheduling
+    rows = await get_assignments_for_week_with_ids(monday)
 
     for aid, cid, aname, due_at, cname, ccode in rows:
         due_friendly = format_local(due_at, "%a %b %d, %I:%M %p") if due_at else "No due date"
@@ -127,8 +110,8 @@ async def send_weekly_assignments(ctx: discord.ext.commands.Context):
         while True:
             attempts += 1
             try:
-                m = await ctx.bot.wait_for('message', timeout=120.0, check=check_author)
-            except Exception:
+                m = await ctx.bot.wait_for('message', timeout=SCHEDULING_TIMEOUT, check=check_author)
+            except TimeoutError:
                 # Timeout: keep prompting until provided (forced planning)
                 await ctx.send("I didn't get a response. Please provide a day/time (e.g., 'Wed 7:30 PM') or type 'stop'.")
                 continue
@@ -147,7 +130,6 @@ async def send_weekly_assignments(ctx: discord.ext.commands.Context):
                 'sat': 5, 'saturday': 5,
                 'sun': 6, 'sunday': 6,
             }
-            import re
             match = re.match(r"^\s*([A-Za-z]+)\s+(\d{1,2}):(\d{2})\s*([AaPp][Mm])\s*$", content)
             if not match:
                 await ctx.send("Sorry, I didn't understand. Please use 'Wed 7:30 PM'.")

@@ -1,7 +1,6 @@
 import asyncio
 import aiosqlite
-
-DB_PATH = "data/canvas_bot.db"
+from database.db_manager import DB_PATH
 
 async def main():
     async with aiosqlite.connect(DB_PATH) as db:
