@@ -3,7 +3,7 @@ from database.db_manager import upsert_courses, upsert_assignments, init_db
 
 async def sync_canvas_data():
     """Fetch all courses and assignments from Canvas and store them locally."""
-    print("🔄 Syncing Canvas data...")
+    print("Syncing Canvas data...")
     # Ensure DB exists
     await init_db()
     courses = get_courses()
@@ -14,4 +14,4 @@ async def sync_canvas_data():
         assignments = get_assignments(course_id)
         await upsert_assignments(assignments, course_id)
 
-    print("✅ Canvas data synced successfully.")
+    print("Canvas data synced successfully.")
