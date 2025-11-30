@@ -35,10 +35,27 @@ async def init_db():
                 week_number INTEGER,
                 html_url TEXT,
                 submitted INTEGER DEFAULT 0,
+                due_reminder_2d_sent INTEGER DEFAULT 0,
+                due_reminder_1d_sent INTEGER DEFAULT 0,
+                due_reminder_12h_sent INTEGER DEFAULT 0,
                 PRIMARY KEY (course_id, id),
                 FOREIGN KEY (course_id) REFERENCES courses (id)
             )
         """)
+        
+        # Add due date reminder columns if they don't exist (migration)
+        try:
+            await db.execute("ALTER TABLE assignments ADD COLUMN due_reminder_2d_sent INTEGER DEFAULT 0")
+        except Exception:
+            pass
+        try:
+            await db.execute("ALTER TABLE assignments ADD COLUMN due_reminder_1d_sent INTEGER DEFAULT 0")
+        except Exception:
+            pass
+        try:
+            await db.execute("ALTER TABLE assignments ADD COLUMN due_reminder_12h_sent INTEGER DEFAULT 0")
+        except Exception:
+            pass
 
         # Migration: if an older schema exists with single-column PK on id, rebuild table
         try:
@@ -467,5 +484,116 @@ async def update_study_plan_time(user_id: str, course_id: int, assignment_id: in
             WHERE user_id = ? AND course_id = ? AND assignment_id = ?
             """,
             (new_planned_at_utc, user_id, course_id, assignment_id),
+        )
+        await db.commit()
+
+
+async def get_pending_due_date_reminders(now_utc: datetime, user_id: str):
+    """
+    Get all assignments due this week that need due date reminders.
+    Returns rows with: (assignment_id, course_id, assignment_name, due_at, course_code, course_name, reminder_type)
+    reminder_type: '2d', '1d', or '12h'
+    Only returns assignments that are not marked complete by the user.
+    """
+    # Get current week Monday-Sunday
+    today = now_utc.astimezone(get_local_tz() if hasattr(now_utc, 'astimezone') else None)
+    if today.tzinfo is None:
+        from datetime import timezone as tz
+        today = now_utc.replace(tzinfo=tz.utc).astimezone(get_local_tz())
+    
+    monday = today.replace(hour=0, minute=0, second=0, microsecond=0) - timedelta(days=today.weekday())
+    sunday = monday + timedelta(days=6, hours=23, minutes=59, seconds=59)
+    
+    start_utc_iso = to_utc_iso_z(monday)
+    end_utc_iso = to_utc_iso_z(sunday)
+    
+    results = []
+    
+    async with aiosqlite.connect(DB_PATH) as db:
+        # Check for 2-day reminders (due date is 2 days from now, +/- 1 minute)
+        d2_start = to_utc_iso_z(now_utc + timedelta(days=2, minutes=-1))
+        d2_end = to_utc_iso_z(now_utc + timedelta(days=2, minutes=1))
+        async with db.execute(
+            """
+            SELECT a.id, a.course_id, a.name, a.due_at, c.course_code, c.name
+            FROM assignments a
+            JOIN courses c ON c.id = a.course_id
+            LEFT JOIN user_assignment_status uas 
+              ON uas.user_id = ? AND uas.course_id = a.course_id AND uas.assignment_id = a.id
+            WHERE a.due_at BETWEEN ? AND ?
+              AND a.due_at BETWEEN ? AND ?
+              AND a.due_reminder_2d_sent = 0
+              AND COALESCE(uas.completed, 0) = 0
+            """,
+            (user_id, d2_start, d2_end, start_utc_iso, end_utc_iso),
+        ) as cursor:
+            rows = await cursor.fetchall()
+            for row in rows:
+                results.append(row + ('2d',))
+        
+        # Check for 1-day reminders
+        d1_start = to_utc_iso_z(now_utc + timedelta(days=1, minutes=-1))
+        d1_end = to_utc_iso_z(now_utc + timedelta(days=1, minutes=1))
+        async with db.execute(
+            """
+            SELECT a.id, a.course_id, a.name, a.due_at, c.course_code, c.name
+            FROM assignments a
+            JOIN courses c ON c.id = a.course_id
+            LEFT JOIN user_assignment_status uas 
+              ON uas.user_id = ? AND uas.course_id = a.course_id AND uas.assignment_id = a.id
+            WHERE a.due_at BETWEEN ? AND ?
+              AND a.due_at BETWEEN ? AND ?
+              AND a.due_reminder_1d_sent = 0
+              AND COALESCE(uas.completed, 0) = 0
+            """,
+            (user_id, d1_start, d1_end, start_utc_iso, end_utc_iso),
+        ) as cursor:
+            rows = await cursor.fetchall()
+            for row in rows:
+                results.append(row + ('1d',))
+        
+        # Check for 12-hour reminders
+        h12_start = to_utc_iso_z(now_utc + timedelta(hours=12, minutes=-1))
+        h12_end = to_utc_iso_z(now_utc + timedelta(hours=12, minutes=1))
+        async with db.execute(
+            """
+            SELECT a.id, a.course_id, a.name, a.due_at, c.course_code, c.name
+            FROM assignments a
+            JOIN courses c ON c.id = a.course_id
+            LEFT JOIN user_assignment_status uas 
+              ON uas.user_id = ? AND uas.course_id = a.course_id AND uas.assignment_id = a.id
+            WHERE a.due_at BETWEEN ? AND ?
+              AND a.due_at BETWEEN ? AND ?
+              AND a.due_reminder_12h_sent = 0
+              AND COALESCE(uas.completed, 0) = 0
+            """,
+            (user_id, h12_start, h12_end, start_utc_iso, end_utc_iso),
+        ) as cursor:
+            rows = await cursor.fetchall()
+            for row in rows:
+                results.append(row + ('12h',))
+    
+    return results
+
+
+async def mark_due_date_reminder_sent(course_id: int, assignment_id: int, reminder_type: str):
+    """Mark a specific due date reminder as sent for an assignment."""
+    column_map = {
+        '2d': 'due_reminder_2d_sent',
+        '1d': 'due_reminder_1d_sent',
+        '12h': 'due_reminder_12h_sent'
+    }
+    column = column_map.get(reminder_type)
+    if not column:
+        return
+    
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute(
+            f"""
+            UPDATE assignments
+            SET {column} = 1
+            WHERE course_id = ? AND id = ?
+            """,
+            (course_id, assignment_id),
         )
         await db.commit()

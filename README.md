@@ -73,6 +73,8 @@ Every Monday at 9:00 AM, the bot will:
 3. Users can then use `!thisweek` to interactively schedule work times
 
 ### Automated Reminders
+
+#### Work Session Reminders
 For each planned work session, the bot automatically sends:
 - **24-hour reminder** - One day before the scheduled time
 - **1-hour reminder** - One hour before the scheduled time
@@ -82,6 +84,18 @@ Each reminder includes:
 - Assignment name and course
 - Scheduled work time and due date
 - Option to reschedule with `!reschedule` command
+
+#### Due Date Reminders
+For all assignments due this week (whether scheduled or not), the bot sends:
+- **2-day reminder** - Two days before the assignment is due
+- **1-day reminder** - One day before the assignment is due
+- **12-hour reminder** - Twelve hours before the assignment is due
+
+Due date reminders include:
+- Assignment name and course
+- Due date and time
+- Urgency message based on time remaining
+- Only sent for incomplete assignments
 
 ### Manual Commands
 

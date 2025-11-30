@@ -2,7 +2,8 @@ import discord
 from discord.ext import commands, tasks
 from config import BOT_TOKEN, CHANNEL_ID
 from database.db_manager import (init_db, get_user_plans_for_week_detailed, get_week_assignments_with_status, 
-                                 set_assignment_completed, get_pending_reminders, mark_reminder_sent, update_study_plan_time)
+                                 set_assignment_completed, get_pending_reminders, mark_reminder_sent, update_study_plan_time,
+                                 get_pending_due_date_reminders, mark_due_date_reminder_sent)
 from services.canvas_service import get_formatted_courses, get_formatted_assignments
 from utils.weekly import send_weekly_assignments, send_weekly_assignments_to_channel
 from utils.sync import sync_canvas_data
@@ -258,7 +259,52 @@ async def check_reminders():
             
             # Mark reminder as sent
             await mark_reminder_sent(user_id, course_id, assignment_id, reminder_type)
-            print(f"✅ Sent {reminder_type} reminder for {assignment_name} to user {user_id}")
+            print(f"✅ Sent {reminder_type} work session reminder for {assignment_name} to user {user_id}")
+        
+        # Check for due date reminders (Note: assumes single user, gets first user from guild members)
+        # For multi-user support, would need to iterate through all users with assignments
+        if channel.guild:
+            for member in channel.guild.members:
+                if member.bot:
+                    continue
+                user_id = str(member.id)
+                
+                due_reminders = await get_pending_due_date_reminders(now_utc, user_id)
+                
+                for reminder in due_reminders:
+                    assignment_id, course_id, assignment_name, due_at, course_code, course_name, reminder_type = reminder
+                    
+                    # Format the reminder message
+                    time_labels = {
+                        '2d': '📅 **2-day reminder**',
+                        '1d': '📅 **1-day reminder**',
+                        '12h': '⚠️ **12-hour reminder**'
+                    }
+                    time_label = time_labels.get(reminder_type, '📅 Reminder')
+                    
+                    due_str = format_local(due_at, "%a %b %d, %I:%M %p") if due_at else "No due date"
+                    course_label = f"{course_code}: {course_name}" if course_code else course_name
+                    
+                    # Mention the user
+                    user_mention = f"<@{user_id}>"
+                    
+                    msg = f"{time_label} {user_mention}\n\n"
+                    msg += f"📝 **Assignment due soon:** {assignment_name}\n"
+                    msg += f"📖 **Course:** {course_label}\n"
+                    msg += f"⏳ **Due:** {due_str}\n\n"
+                    
+                    if reminder_type == '2d':
+                        msg += f"💡 You have 2 days to complete this assignment!"
+                    elif reminder_type == '1d':
+                        msg += f"⚡ Only 1 day left to complete this assignment!"
+                    else:  # 12h
+                        msg += f"🚨 Only 12 hours left! Time to finish up!"
+                    
+                    await channel.send(msg)
+                    
+                    # Mark reminder as sent
+                    await mark_due_date_reminder_sent(course_id, assignment_id, reminder_type)
+                    print(f"✅ Sent {reminder_type} due date reminder for {assignment_name} to user {user_id}")
             
     except Exception as e:
         print(f"❌ Error checking reminders: {e}")
