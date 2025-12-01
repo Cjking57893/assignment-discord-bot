@@ -1,7 +1,4 @@
-"""
-Configuration Management for Canvas Assignment Bot
-Loads environment variables and provides application-wide settings.
-"""
+"""Configuration management - loads environment variables."""
 
 import os
 from dotenv import load_dotenv

@@ -1,0 +1,15 @@
+# Discord Bot Framework
+discord.py>=2.3.0
+
+# Environment Configuration
+python-dotenv>=1.0.0
+
+# Async SQLite Database
+aiosqlite>=0.19.0
+
+# HTTP Requests for Canvas API
+requests>=2.31.0
+
+# Timezone Support (Python 3.9+ includes zoneinfo)
+# tzdata is needed for Windows systems
+tzdata>=2023.3; sys_platform == 'win32'

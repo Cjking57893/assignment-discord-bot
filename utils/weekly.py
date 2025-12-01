@@ -1,19 +1,55 @@
 """
-Weekly Assignment Management Utilities
-Handles displaying and scheduling weekly assignments.
+Weekly assignment management utilities.
 """
 
 import discord
 import re
 from datetime import datetime, timedelta
-from database.db_manager import get_assignments_for_week, get_assignments_for_week_with_ids, upsert_study_plan
+from typing import Tuple
+
+from database.db_manager import (
+    get_assignments_for_week,
+    get_assignments_for_week_with_ids,
+    upsert_study_plan
+)
 from utils.datetime_utils import format_local, get_local_tz, to_utc_iso_z
-
-# Timeout for interactive scheduling prompts (in seconds)
-SCHEDULING_TIMEOUT = 120.0
+from constants import DAY_NAME_MAP, SCHEDULING_TIMEOUT
 
 
-async def send_weekly_assignments_to_channel(channel: discord.TextChannel):
+def _parse_day_time_input(input_str: str, week_monday: datetime) -> Tuple[datetime, None] | Tuple[None, str]:
+    """
+    Parse user input like 'Wed 7:30 PM' into a local datetime.
+    
+    Args:
+        input_str: User input string (e.g., 'Wed 7:30 PM').
+        week_monday: The Monday of the current week.
+    
+    Returns:
+        Tuple of (parsed datetime, None) if successful, or (None, error message) if parsing fails.
+    """
+    match = re.match(r"^\s*([A-Za-z]+)\s+(\d{1,2}):(\d{2})\s*([AaPp][Mm])\s*$", input_str)
+    if not match:
+        return None, "Sorry, I didn't understand. Please use format like 'Wed 7:30 PM'."
+    
+    day_str, hh, mm, ap = match.groups()
+    day_idx = DAY_NAME_MAP.get(day_str.lower())
+    
+    if day_idx is None:
+        return None, "Unknown day. Try Mon/Tue/Wed/Thu/Fri/Sat/Sun."
+    
+    hour = int(hh) % 12
+    if ap.lower() == 'pm':
+        hour += 12
+    minute = int(mm)
+    
+    planned_local = week_monday + timedelta(days=day_idx)
+    planned_local = planned_local.replace(hour=hour, minute=minute, second=0, microsecond=0)
+    planned_local = planned_local.replace(tzinfo=get_local_tz())
+    
+    return planned_local, None
+
+
+async def send_weekly_assignments_to_channel(channel: discord.TextChannel) -> None:
     """
     Sends weekly assignments to a specific Discord channel without interactive scheduling.
     Used for automated Monday morning notifications.
@@ -53,25 +89,22 @@ async def send_weekly_assignments_to_channel(channel: discord.TextChannel):
     await channel.send(message)
 
 
-async def send_weekly_assignments(ctx: discord.ext.commands.Context):
-    """
-    Sends a message listing all assignments due between Monday and Sunday of the current week.
-    Assumes assignments have already been synced into the local SQLite database.
-    """
-
-    # 1. Determine current week's Monday (00:00:00)
+async def send_weekly_assignments(ctx: discord.ext.commands.Context) -> None:
+    """List assignments due this week with interactive scheduling."""
+    # Determine current week's Monday (00:00:00)
     today = datetime.now()
     monday = today.replace(hour=0, minute=0, second=0, microsecond=0) - timedelta(days=today.weekday())
     sunday = monday + timedelta(days=6)
 
-    # 2. Query the DB for assignments due this week
+    # Query the DB for assignments due this week
     assignments = await get_assignments_for_week(monday)
 
-    # 3. Format date range (for message header)
+    # Format date range (for message header)
     tz = get_local_tz()
-    week_range = f"{monday.strftime('%b %d')} – {sunday.strftime('%b %d')} ({tz.tzname(None) if hasattr(tz, 'tzname') else ''})"
+    tz_name = tz.tzname(None) if hasattr(tz, 'tzname') else ''
+    week_range = f"{monday.strftime('%b %d')} – {sunday.strftime('%b %d')} ({tz_name})"
 
-    # 4. Format the output
+    # Format the output
     if not assignments:
         await ctx.send(f"🎉 No assignments due for **{week_range}** — you're all caught up!")
         return
@@ -79,7 +112,6 @@ async def send_weekly_assignments(ctx: discord.ext.commands.Context):
     # Build a neat message
     lines = []
     for name, due_at, course_name, course_code in assignments:
-        # Convert due date to readable format
         try:
             due = format_local(due_at, "%a %b %d, %I:%M %p")
         except (ValueError, TypeError):
@@ -92,7 +124,7 @@ async def send_weekly_assignments(ctx: discord.ext.commands.Context):
 
     await ctx.send(message)
 
-    # Interactive scheduling (required): the user must plan a time for each assignment
+    # Interactive scheduling
     await ctx.send("Let's schedule time to work on each assignment now. Please reply with a day/time like 'Wed 7:30 PM'. Type 'stop' to cancel the scheduling process.")
 
     def check_author(m):
@@ -106,47 +138,28 @@ async def send_weekly_assignments(ctx: discord.ext.commands.Context):
         label = f"{ccode}: {cname}" if ccode else cname
         await ctx.send(f"Plan time for: {aname} — {label} (due {due_friendly})\nFormat: Mon/Tue/... HH:MM AM/PM. Type 'stop' to cancel.")
 
-        attempts = 0
         while True:
-            attempts += 1
             try:
                 m = await ctx.bot.wait_for('message', timeout=SCHEDULING_TIMEOUT, check=check_author)
             except TimeoutError:
-                # Timeout: keep prompting until provided (forced planning)
+                # Timeout: keep prompting until provided
                 await ctx.send("I didn't get a response. Please provide a day/time (e.g., 'Wed 7:30 PM') or type 'stop'.")
                 continue
+            
             content = m.content.strip()
             if content.lower() in ("stop", "quit"):
                 await ctx.send("Scheduling cancelled. You can run !thisweek again to reschedule.")
                 return
 
-            # Parse simple inputs like 'Wed 7:30 PM' relative to current week
-            day_map = {
-                'mon': 0, 'monday': 0,
-                'tue': 1, 'tues': 1, 'tuesday': 1,
-                'wed': 2, 'wednesday': 2,
-                'thu': 3, 'thurs': 3, 'thursday': 3,
-                'fri': 4, 'friday': 4,
-                'sat': 5, 'saturday': 5,
-                'sun': 6, 'sunday': 6,
-            }
-            match = re.match(r"^\s*([A-Za-z]+)\s+(\d{1,2}):(\d{2})\s*([AaPp][Mm])\s*$", content)
-            if not match:
-                await ctx.send("Sorry, I didn't understand. Please use 'Wed 7:30 PM'.")
+            # Parse time input
+            planned_local, error = _parse_day_time_input(content, monday)
+            if error:
+                await ctx.send(error)
                 continue
-            day_str, hh, mm, ap = match.groups()
-            day_idx = day_map.get(day_str.lower())
-            if day_idx is None:
-                await ctx.send("Unknown day. Try Mon/Tue/Wed/Thu/Fri/Sat/Sun.")
-                continue
-            hour = int(hh) % 12
-            if ap.lower() == 'pm':
-                hour += 12
-            minute = int(mm)
-            planned_local = monday + timedelta(days=day_idx)
-            planned_local = planned_local.replace(hour=hour, minute=minute, second=0, microsecond=0)
-            planned_local = planned_local.replace(tzinfo=get_local_tz())
+            
+            # Save to database
             planned_utc_iso = to_utc_iso_z(planned_local)
             await upsert_study_plan(str(ctx.author.id), cid, aid, planned_utc_iso)
             await ctx.send(f"Saved plan for {aname} on {planned_local.strftime('%a %b %d at %I:%M %p')}.")
             break
+

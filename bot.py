@@ -1,14 +1,21 @@
-"""
-Discord Bot for Canvas Assignment Management
-Provides automated weekly notifications, reminders, and interactive planning for Canvas assignments.
-"""
+"""Discord bot for managing Canvas assignments with automated reminders."""
 
 import re
 import discord
 from discord.ext import commands, tasks
 from datetime import time, datetime, timedelta, timezone
+from typing import Optional
 
 from config import BOT_TOKEN, CHANNEL_ID, WEEKLY_NOTIFICATION_HOUR, WEEKLY_NOTIFICATION_MINUTE
+from constants import (
+    WORK_SESSION_REMINDER_LABELS,
+    DUE_DATE_REMINDER_LABELS,
+    DUE_DATE_REMINDER_MESSAGES,
+    DAY_NAME_MAP,
+    USER_RESPONSE_TIMEOUT,
+    RESCHEDULE_TIMEOUT,
+    REMINDER_CHECK_INTERVAL
+)
 from database.db_manager import (
     init_db, get_user_plans_for_week_detailed, get_week_assignments_with_status, 
     set_assignment_completed, get_pending_reminders, mark_reminder_sent, update_study_plan_time,
@@ -26,54 +33,19 @@ from utils.datetime_utils import format_local, get_local_tz, to_utc_iso_z
 bot = commands.Bot(command_prefix="!", intents=discord.Intents.all())
 _synced_once = False
 
-# ========================================
-# Constants
-# ========================================
-
-WORK_SESSION_REMINDER_LABELS = {
-    '24h': '⏰ **24-hour reminder**',
-    '1h': '⏰ **1-hour reminder**',
-    'now': '🔔 **It\'s time!**'
-}
-
-DUE_DATE_REMINDER_LABELS = {
-    '2d': '📅 **2-day reminder**',
-    '1d': '📅 **1-day reminder**',
-    '12h': '⚠️ **12-hour reminder**'
-}
-
-DUE_DATE_REMINDER_MESSAGES = {
-    '2d': "💡 You have 2 days to complete this assignment!",
-    '1d': "⚡ Only 1 day left to complete this assignment!",
-    '12h': "🚨 Only 12 hours left! Time to finish up!"
-}
-
 
 # ========================================
 # Helper Functions
 # ========================================
 
-def parse_day_time_input(input_str: str, week_monday: datetime) -> str | None:
-    """
-    Parse user input like 'Wed 7:30 PM' into a UTC ISO timestamp.
-    Returns None if parsing fails.
-    """
-    day_map = {
-        'mon': 0, 'monday': 0,
-        'tue': 1, 'tues': 1, 'tuesday': 1,
-        'wed': 2, 'wednesday': 2,
-        'thu': 3, 'thurs': 3, 'thursday': 3,
-        'fri': 4, 'friday': 4,
-        'sat': 5, 'saturday': 5,
-        'sun': 6, 'sunday': 6,
-    }
-    
+def parse_day_time_input(input_str: str, week_monday: datetime) -> Optional[str]:
+    """Parse user input like 'Wed 7:30 PM' into UTC ISO timestamp."""
     match = re.match(r"^\s*([A-Za-z]+)\s+(\d{1,2}):(\d{2})\s*([AaPp][Mm])\s*$", input_str)
     if not match:
         return None
     
     day_str, hh, mm, ap = match.groups()
-    day_idx = day_map.get(day_str.lower())
+    day_idx = DAY_NAME_MAP.get(day_str.lower())
     if day_idx is None:
         return None
     
@@ -94,29 +66,34 @@ def parse_day_time_input(input_str: str, week_monday: datetime) -> str | None:
 # ========================================
 
 @bot.event
-async def on_ready():
+async def on_ready() -> None:
     """Initialize bot, sync Canvas data, and start background tasks."""
     global _synced_once
-    await init_db()
-    print("Database initialized.")
-    print(f"✅ Logged in as {bot.user}")
     
-    # Perform initial Canvas sync
-    if not _synced_once:
-        try:
-            await sync_canvas_data()
-            _synced_once = True
-            print("Initial sync complete.")
-        except Exception as e:
-            print(f"Initial sync failed: {e}")
-    
-    # Start background tasks
-    if not weekly_notification.is_running():
-        weekly_notification.start()
-    
-    if not check_reminders.is_running():
-        check_reminders.start()
-        print("⏰ Reminder system started.")
+    try:
+        await init_db()
+        print("Database initialized.")
+        print(f"✅ Logged in as {bot.user}")
+        
+        # Perform initial Canvas sync
+        if not _synced_once:
+            try:
+                await sync_canvas_data()
+                _synced_once = True
+                print("Initial sync complete.")
+            except Exception as e:
+                print(f"⚠️ Initial sync failed: {e}")
+        
+        # Start background tasks
+        if not weekly_notification.is_running():
+            weekly_notification.start()
+            print("📅 Weekly notification task started.")
+        
+        if not check_reminders.is_running():
+            check_reminders.start()
+            print("⏰ Reminder system started.")
+    except Exception as e:
+        print(f"❌ Error during bot initialization: {e}")
 
 
 # ========================================
@@ -124,24 +101,25 @@ async def on_ready():
 # ========================================
 
 @bot.command()
-async def sync(ctx):
+async def sync(ctx: commands.Context) -> None:
     """Manually sync Canvas courses and assignments to local database."""
     await ctx.send("🔄 Syncing Canvas data from Canvas API...")
     try:
         await sync_canvas_data()
         await ctx.send("✅ Sync complete! Local database updated.")
     except Exception as e:
-        await ctx.send(f"❌ Sync failed: {e}")
+        print(f"Sync error: {e}")
+        await ctx.send(f"❌ Sync failed. Please try again later or contact an administrator.")
 
 
 @bot.command()
-async def thisweek(ctx):
-    """List assignments due this week and interactively schedule work sessions."""
+async def thisweek(ctx: commands.Context) -> None:
+    """List assignments due this week and schedule work sessions."""
     await send_weekly_assignments(ctx)
 
 
 @bot.command()
-async def plans(ctx):
+async def plans(ctx: commands.Context) -> None:
     """Display all planned study sessions for the current week."""
     tz = get_local_tz()
     today = datetime.now()
@@ -173,13 +151,8 @@ async def plans(ctx):
 
 
 @bot.command()
-async def complete(ctx, *, query: str | None = None):
-    """
-    Mark assignments as complete.
-    Usage: !complete [search_query]
-    - With query: searches for assignments matching the query
-    - Without query: shows numbered list of incomplete assignments for selection
-    """
+async def complete(ctx: commands.Context, *, query: Optional[str] = None) -> None:
+    """Mark assignments as complete. Optional query to filter assignments."""
     tz = get_local_tz()
     today = datetime.now()
     monday = today.replace(hour=0, minute=0, second=0, microsecond=0) - timedelta(days=today.weekday())
@@ -203,7 +176,7 @@ async def complete(ctx, *, query: str | None = None):
         return
 
     # Display numbered list
-    def fmt_row(i, r):
+    def fmt_row(i: int, r: tuple) -> str:
         assignment_id, course_id, assignment_name, due_utc, course_code, course_name, completed, submitted = r
         due_str = format_local(due_utc, "%a %b %d, %I:%M %p") if due_utc else "No due date"
         label = f"{course_code}: {course_name}" if course_code else course_name
@@ -218,7 +191,7 @@ async def complete(ctx, *, query: str | None = None):
         return m.author == ctx.author and m.channel == ctx.channel
 
     try:
-        m = await ctx.bot.wait_for('message', timeout=90.0, check=check_author)
+        m = await ctx.bot.wait_for('message', timeout=USER_RESPONSE_TIMEOUT, check=check_author)
     except TimeoutError:
         await ctx.send("Timed out waiting for a selection.")
         return
@@ -250,8 +223,8 @@ async def complete(ctx, *, query: str | None = None):
 
 
 @bot.command()
-async def reschedule(ctx):
-    """Interactively reschedule a planned work session to a new time."""
+async def reschedule(ctx: commands.Context) -> None:
+    """Reschedule a planned work session to a new time."""
     tz = get_local_tz()
     today = datetime.now()
     monday = today.replace(hour=0, minute=0, second=0, microsecond=0) - timedelta(days=today.weekday())
@@ -278,7 +251,7 @@ async def reschedule(ctx):
     
     # Get session selection
     try:
-        selection_msg = await ctx.bot.wait_for('message', timeout=60.0, check=check_author)
+        selection_msg = await ctx.bot.wait_for('message', timeout=RESCHEDULE_TIMEOUT, check=check_author)
     except TimeoutError:
         await ctx.send("Timed out waiting for selection.")
         return
@@ -298,7 +271,7 @@ async def reschedule(ctx):
     await ctx.send(f"Enter the new time for **{assignment_name}** (e.g., 'Wed 7:30 PM'):")
     
     try:
-        time_msg = await ctx.bot.wait_for('message', timeout=120.0, check=check_author)
+        time_msg = await ctx.bot.wait_for('message', timeout=RESCHEDULE_TIMEOUT, check=check_author)
     except TimeoutError:
         await ctx.send("Timed out waiting for new time.")
         return
@@ -321,8 +294,8 @@ async def reschedule(ctx):
 # ========================================
 
 @tasks.loop(time=time(hour=WEEKLY_NOTIFICATION_HOUR, minute=WEEKLY_NOTIFICATION_MINUTE))
-async def weekly_notification():
-    """Send weekly assignment summary every Monday at configured time."""
+async def weekly_notification() -> None:
+    """Send weekly assignment summary every Monday."""
     # Only run on Mondays
     if datetime.now().weekday() != 0:
         return
@@ -330,9 +303,9 @@ async def weekly_notification():
     # Sync Canvas data before sending weekly update
     try:
         await sync_canvas_data()
-        print("Weekly sync complete.")
+        print("📅 Weekly sync complete.")
     except Exception as e:
-        print(f"Weekly sync failed: {e}")
+        print(f"⚠️ Weekly sync failed: {e}")
     
     # Validate channel configuration
     if not CHANNEL_ID:
@@ -354,9 +327,9 @@ async def weekly_notification():
         print(f"❌ Error sending weekly notification: {e}")
 
 
-@tasks.loop(minutes=1)
-async def check_reminders():
-    """Check and send work session and due date reminders every minute."""
+@tasks.loop(minutes=REMINDER_CHECK_INTERVAL)
+async def check_reminders() -> None:
+    """Check and send work session and due date reminders."""
     if not CHANNEL_ID:
         return
     
@@ -368,16 +341,18 @@ async def check_reminders():
         
         now_utc = datetime.now(timezone.utc)
         
-        # ===== Work Session Reminders =====
+        # Work Session Reminders
         await send_work_session_reminders(channel, now_utc)
         
-        # ===== Due Date Reminders =====
+        # Due Date Reminders
         await send_due_date_reminders(channel, now_utc)
         
-        # ===== Week Completion Check (once daily at noon) =====
+        # Week Completion Check (once daily at noon)
         if now_utc.hour == 12:
             await check_and_send_completion_notifications(channel)
             
+    except ValueError:
+        print(f"⚠️ Invalid CHANNEL_ID: {CHANNEL_ID}")
     except Exception as e:
         print(f"❌ Error checking reminders: {e}")
 
@@ -386,7 +361,7 @@ async def check_reminders():
 # Reminder Helper Functions
 # ========================================
 
-async def send_work_session_reminders(channel: discord.TextChannel, now_utc: datetime):
+async def send_work_session_reminders(channel: discord.TextChannel, now_utc: datetime) -> None:
     """Send reminders for upcoming planned work sessions."""
     reminders = await get_pending_reminders(now_utc)
     
@@ -411,7 +386,7 @@ async def send_work_session_reminders(channel: discord.TextChannel, now_utc: dat
         print(f"✅ Sent {reminder_type} work session reminder for {assignment_name} to user {user_id}")
 
 
-async def send_due_date_reminders(channel: discord.TextChannel, now_utc: datetime):
+async def send_due_date_reminders(channel: discord.TextChannel, now_utc: datetime) -> None:
     """Send reminders for upcoming assignment due dates."""
     if not channel.guild:
         return
@@ -442,8 +417,8 @@ async def send_due_date_reminders(channel: discord.TextChannel, now_utc: datetim
             print(f"✅ Sent {reminder_type} due date reminder for {assignment_name} to user {user_id}")
 
 
-async def check_and_send_completion_notifications(channel: discord.TextChannel):
-    """Check if users have completed all weekly assignments and send congratulations."""
+async def check_and_send_completion_notifications(channel: discord.TextChannel) -> None:
+    """Check if users completed all weekly assignments and send congratulations."""
     if not channel.guild:
         return
     
