@@ -8,8 +8,6 @@ from .datetime_utils import (
     format_local,
     week_start_end_local,
 )
-from .sync import sync_canvas_data
-from .weekly import send_weekly_assignments, send_weekly_assignments_to_channel
 
 __all__ = [
     'get_local_tz',
@@ -18,7 +16,4 @@ __all__ = [
     'to_local',
     'format_local',
     'week_start_end_local',
-    'sync_canvas_data',
-    'send_weekly_assignments',
-    'send_weekly_assignments_to_channel',
 ]
