@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Assignment Discord Bot</title>
+  <meta name="description" content="Assignment Discord Bot — Canvas-integrated reminders, weekly summaries, and study planning for Discord servers." />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #0b0f1a;
+      --card: #111729;
+      --text: #e7edf5;
+      --muted: #b6c2d2;
+      --accent: #4ea1ff;
+      --accent-2: #65f0b5;
+      --border: #1f2a3d;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; padding: 0;
+      font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+      color: var(--text); background: linear-gradient(180deg, #091224 0%, #0b0f1a 100%);
+    }
+    .wrap { max-width: 960px; margin: 0 auto; padding: 40px 20px; }
+    header { text-align: center; margin-bottom: 32px; }
+    h1 { font-size: 2rem; margin: 0 0 8px; }
+    .tagline { color: var(--muted); font-size: 1rem; }
+    .cta {
+      display: inline-block; margin-top: 16px; padding: 10px 16px; border-radius: 8px;
+      background: var(--accent); color: #06101f; font-weight: 700; text-decoration: none;
+      box-shadow: 0 6px 18px rgba(78, 161, 255, 0.25);
+    }
+    .grid { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
+    .card {
+      background: var(--card); border: 1px solid var(--border); border-radius: 14px;
+      padding: 18px; box-shadow: 0 10px 24px rgba(0,0,0,0.25);
+    }
+    h2 { font-size: 1.25rem; margin: 0 0 10px; }
+    p { margin: 8px 0 0; color: var(--muted); }
+    ul { margin: 8px 0 0 18px; color: var(--muted); }
+    a { color: var(--accent-2); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    .section { margin-top: 28px; }
+    .badge { display: inline-block; font-size: 0.85rem; color: #06101f; background: var(--accent-2); padding: 4px 8px; border-radius: 999px; font-weight: 700; }
+    .row { display: flex; gap: 16px; flex-wrap: wrap; }
+    .row .card { flex: 1 1 280px; }
+    footer { text-align: center; margin-top: 36px; color: var(--muted); font-size: 0.9rem; }
+  </style>
+  <!-- Simple, static landing page -->
+  <!-- Links adjusted for root location; PDFs under docs/ -->
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <h1>Assignment Discord Bot</h1>
+      <p class="tagline">Canvas-integrated weekly summaries and reminders to keep classes on track.</p>
+      <a class="cta" href="docs/manual/manual.pdf">Get the User Manual</a>
+    </header>
+
+    <section class="section card">
+      <h2>About</h2>
+      <p>
+        The Assignment Discord Bot connects your Canvas courses to your Discord server. It syncs assignments,
+        posts a weekly Monday summary, and sends gentle reminders for planned study sessions and upcoming due dates.
+        Built with Python, SQLite, and the Canvas API, it's designed to be simple to run and helpful for students and study groups.
+      </p>
+    </section>
+
+    <section class="section">
+      <div class="row">
+        <div class="card">
+          <div class="badge">For Users</div>
+          <h2>User Manual</h2>
+          <p>Read the step-by-step guide for setup, commands, and features.</p>
+          <p><a href="docs/manual/manual.pdf">Open Manual (PDF)</a></p>
+        </div>
+        <div class="card">
+          <div class="badge">For Developers</div>
+          <h2>Architecture</h2>
+          <p>High-level design overview of the bot's components and data flow.</p>
+          <p><a href="docs/design/architecture.pdf">Open Architecture (PDF)</a></p>
+        </div>
+        <div class="card">
+          <div class="badge">For Developers</div>
+          <h2>GitHub Repository</h2>
+          <p>Browse source code, issues, and contribution details.</p>
+          <p><a href="https://github.com/Cjking57893/assignment-discord-bot" target="_blank" rel="noopener">View on GitHub</a></p>
+        </div>
+      </div>
+    </section>
+
+    <section class="section card">
+      <h2>Highlights</h2>
+      <ul>
+        <li>Canvas sync for courses and assignments</li>
+        <li>Weekly Monday summaries in your chosen channel</li>
+        <li>Study session and due date reminders</li>
+        <li>Timezone-aware display; UTC-based storage</li>
+        <li>Simple local SQLite database</li>
+      </ul>
+    </section>
+
+    <footer>
+      &copy; 2025 Assignment Discord Bot — Built with Python and Canvas API
+    </footer>
+  </div>
+</body>
+</html>
